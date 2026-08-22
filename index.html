@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J-CROS | Japan Crisis Response Operating System</title>
+    
+    <!-- UI Framework & Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- GIS Engine & Google Maps Integration -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
+    <script src="https://unpkg.com/leaflet.gridlayer.googlemutant@0.14.0/dist/Leaflet.GoogleMutant.js"></script>
+
+    <style>
+        #map { height: calc(100vh - 64px); width: 100%; }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans overflow-hidden">
+
+    <!-- J-CROS Top Status Bar -->
+    <header class="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 z-50 relative shadow-2xl">
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-shield-halved text-blue-500 text-2xl"></i>
+                <span class="text-xl font-black tracking-wider text-white">J-CROS</span>
+                <span id="systemModeBadge" class="bg-blue-600/30 text-blue-400 text-xs px-2.5 py-1 rounded border border-blue-500/50 font-mono font-bold">
+                    MODE: NORMAL (平時同期)
+                </span>
+            </div>
+            <span class="text-xs text-slate-400 border-l border-slate-700 pl-4 font-mono hidden lg:inline">
+                SOBO-WEB / SIP4D STREAMING: <span class="text-emerald-400">ONLINE (5s sync)</span>
+            </span>
+        </div>
+
+        <!-- System Controls & Trigger -->
+        <div class="flex items-center space-x-4">
+            <div id="timelineTimer" class="font-mono text-xs text-amber-400 font-bold hidden md:inline">
+                経過時間: <span id="timerText">00:00:00</span>
+            </div>
+            <button onclick="startNankaiTroughSimulation()" class="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs md:text-sm font-bold px-4 py-2 rounded-lg shadow-lg shadow-red-900/40 transition transform active:scale-95 flex items-center space-x-2">
+                <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
+                <span>南海トラフ巨大地震 発生シミュレーション</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex h-[calc(100vh-64px)] w-full">
+        
+        <!-- Left Panel: 8 Core Subsystems Control Center -->
+        <div class="w-96 glass-panel flex flex-col justify-between p-4 z-10 space-y-3 overflow-y-auto custom-scrollbar">
+            
+            <!-- Module Switcher Header -->
+            <div>
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-700 pb-1 flex items-center justify-between">
+                    <span><i class="fa-solid fa-cubes mr-1"></i> 統合コア・サブシステム (8 Modules)</span>
+                </h2>
+                
+                <!-- Base Map / Public Layer Controls -->
+                <div class="bg-slate-900/60 p-2 rounded border border-slate-800 text-xs mb-2 space-y-1">
+                    <span class="text-slate-500 font-bold text-[10px]">基盤地図・国交省ハザード連携</span>
+                    <div class="grid grid-cols-3 gap-1 my-1">
+                        <button onclick="setBaseMap('gsat')" class="bg-slate-800 hover:bg-slate-700 py-1 rounded text-center text-[10px]">Google Earth</button>
+                        <button onclick="setBaseMap('gstreet')" class="bg-slate-800 hover:bg-slate-700 py-1 rounded text-center text-[10px]">Google Road</button>
+                        <button onclick="setBaseMap('gsi')" class="bg-slate-800 hover:bg-slate-700 py-1 rounded text-center text-[10px]">国土地理院</button>
+                    </div>
+                    <div class="flex items-center justify-between pt-1">
+                        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" id="chkTsunami" class="accent-blue-500" onchange="toggleTsunamiLayer(this.checked)"><span>津波浸水域</span></label>
+                        <label class="flex items-center space-x-1 cursor-pointer"><input type="checkbox" id="chkLandslide" class="accent-blue-500" onchange="toggleLandslideLayer(this.checked)"><span>土砂警戒域</span></label>
+                    </div>
+                </div>
+
+                <!-- 8 Subsystem Status & Controls -->
+                <div class="space-y-1.5 text-xs">
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-eye text-cyan-400 mr-1.5"></i>1. J-CROS Vision</span>
+                        <span id="stVision" class="text-[10px] text-emerald-400 font-mono">COP 5s同期中</span>
+                    </div>
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-users-gear text-emerald-400 mr-1.5"></i>2. J-CROS Resource</span>
+                        <span id="stResource" class="text-[10px] text-slate-400 font-mono">待機中</span>
+                    </div>
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-brain text-purple-400 mr-1.5"></i>3. J-CROS AI</span>
+                        <span id="stAI" class="text-[10px] text-slate-400 font-mono">IDLE</span>
+                    </div>
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-bullhorn text-red-400 mr-1.5"></i>4. J-CROS Command</span>
+                        <span id="stCommand" class="text-[10px] text-slate-400 font-mono">電子決裁待機</span>
+                    </div>
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-boxes-packing text-amber-400 mr-1.5"></i>5. J-CROS Logistics</span>
+                        <span id="stLogistics" class="text-[10px] text-slate-400 font-mono">プッシュ型準備</span>
+                    </div>
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-truck-medical text-blue-400 mr-1.5"></i>6. J-CROS Medical</span>
+                        <span id="stMedical" class="text-[10px] text-slate-400 font-mono">EMIS連動中</span>
+                    </div>
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-wrench text-orange-400 mr-1.5"></i>7. J-CROS Recovery</span>
+                        <span id="stRecovery" class="text-[10px] text-slate-400 font-mono">インフラ監視</span>
+                    </div>
+                    <div class="p-1.5 bg-slate-900/80 rounded border border-slate-800 flex justify-between items-center">
+                        <span><i class="fa-solid fa-lock text-emerald-500 mr-1.5"></i>8. J-CROS Security</span>
+                        <span id="stSecurity" class="text-[10px] text-emerald-400 font-mono">Zero-Trust OK</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Engine Output Console -->
+            <div class="bg-slate-900/90 rounded border border-blue-500/30 p-2.5">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold text-blue-400 font-mono"><i class="fa-solid fa-microchip mr-1"></i> J-CROS AI 意思決定指示</span>
+                    <span id="aiConfidence" class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">STANDBY</span>
+                </div>
+                <div id="aiConsole" class="text-xs text-slate-300 font-mono space-y-1 min-h-[90px] leading-relaxed">
+                    シミュレーションボタンを押下すると、閣議決定案に基づく運用タイムライン（発災0分〜24時間）を開始します。
+                </div>
+            </div>
+
+            <!-- System Timeline Log -->
+            <div class="flex-1 min-h-[100px]">
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1 border-b border-slate-800 pb-1">
+                    発災プロトコル・活動ログ
+                </h3>
+                <div id="timelineLogs" class="space-y-1 text-[11px] font-mono max-h-36 overflow-y-auto pr-1 custom-scrollbar">
+                    <div class="text-slate-500">[00:00] 平時データ連携動作中...</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Center GIS Map View (COP) -->
+        <div class="flex-1 relative">
+            <div id="map"></div>
+
+            <!-- Executive HUD Overlay -->
+            <div class="absolute top-4 right-4 z-[1000] glass-panel px-4 py-3 rounded-lg flex space-x-6 text-xs font-mono shadow-2xl pointer-events-auto">
+                <div><span class="text-slate-400">災害フェーズ:</span> <span id="hudPhase" class="font-bold text-emerald-400">平時・常時監視</span></div>
+                <div><span class="text-slate-400">想定被害:</span> <span id="hudDamage" class="font-bold text-slate-300">-</span></div>
+                <div><span class="text-slate-400">派遣部隊:</span> <span id="hudUnits" class="font-bold text-slate-300">0 隊</span></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Main Logic Script -->
+    <script>
+        // 地図初期設定（日本全域）
+        const map = L.map('map', { zoomControl: false }).setView([34.0, 136.5], 7);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // レイヤー構築 (Google Maps / 国土地理院 / ハザードマップ)
+        let currentBaseMap;
+        const gsiLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', { attribution: '&copy; 国土地理院' });
+        let gStreetLayer, gSatLayer;
+
+        try {
+            gStreetLayer = L.gridLayer.googleMutant({ type: 'roadmap' });
+            gSatLayer = L.gridLayer.googleMutant({ type: 'hybrid' }); // Google Earth 相当
+            gSatLayer.addTo(map);
+            currentBaseMap = gSatLayer;
+        } catch(e) {
+            gsiLayer.addTo(map);
+            currentBaseMap = gsiLayer;
+        }
+
+        function setBaseMap(type) {
+            if (currentBaseMap) map.removeLayer(currentBaseMap);
+            if (type === 'gsat' && gSatLayer) currentBaseMap = gSatLayer;
+            else if (type === 'gstreet' && gStreetLayer) currentBaseMap = gStreetLayer;
+            else currentBaseMap = gsiLayer;
+            map.addLayer(currentBaseMap);
+        }
+
+        // 国交省「重ねるハザードマップ」データレイヤー
+        const tsunamiLayer = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/04_tsunami_new_3857/{z}/{x}/{y}.png', { opacity: 0.6 });
+        const landslideLayer = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/05_doshafukyu/{z}/{x}/{y}.png', { opacity: 0.6 });
+
+        function toggleTsunamiLayer(chk) { chk ? map.addLayer(tsunamiLayer) : map.removeLayer(tsunamiLayer); }
+        function toggleLandslideLayer(chk) { chk ? map.addLayer(landslideLayer) : map.removeLayer(landslideLayer); }
+
+        // 動的シミュレーション用レイヤーグループ
+        const gisSimGroup = L.layerGroup().addTo(map);
+
+        // 発災運用タイムラインシミュレーション
+        let simTimer = null;
+        let elapsedSeconds = 0;
+
+        function startNankaiTroughSimulation() {
+            gisSimGroup.clearLayers();
+            elapsedSeconds = 0;
+            if(simTimer) clearInterval(simTimer);
+
+            // 1. [発災0分] 災害モード自動起動
+            document.getElementById('systemModeBadge').className = "bg-red-600 text-white text-xs px-2.5 py-1 rounded border border-red-400 font-mono font-bold animate-pulse";
+            document.getElementById('systemModeBadge').innerText = "MODE: EMERGENCY ALERT (緊急災害モード)";
+            document.getElementById('hudPhase').innerText = "初動対応・人命救助 (発災0分)";
+            document.getElementById('hudPhase').className = "font-bold text-red-400 animate-pulse";
+            document.getElementById('hudDamage').innerText = "推計 230万棟全壊 / 死者多数";
+
+            addLog("00:00", "【発災0分】地震観測網トリガーにより J-CROS 自動起動 (緊急モードへ昇格)");
+            document.getElementById('stVision').innerText = "被害自動推計中";
+            document.getElementById('stVision').className = "text-[10px] text-red-400 font-bold animate-pulse";
+
+            // 震源域ポリゴン追加
+            const epicenter = L.polygon([
+                [32.0, 132.0], [33.0, 134.0], [34.0, 137.5], [35.0, 139.0]
+            ], { color: 'red', fillColor: '#ef4444', fillOpacity: 0.45 }).addTo(gisSimGroup);
+            map.fitBounds(epicenter.getBounds());
+
+            // タイムラインタイマー開始
+            document.getElementById('timelineTimer').classList.remove('hidden');
+            simTimer = setInterval(runTimelineSequence, 1000);
+        }
+
+        function runTimelineSequence() {
+            elapsedSeconds += 5; // 擬似進行（1秒＝5分相当）
+            const mins = elapsedSeconds;
+            
+            // タイマー表示更新
+            const h = String(Math.floor(mins / 60)).padStart(2, '0');
+            const m = String(mins % 60).padStart(2, '0');
+            document.getElementById('timerText').innerText = `${h}:${m}:00`;
+
+            // [5分以内] J-CROS Vision / AI 初動マップ作成
+            if (mins === 5) {
+                addLog("00:05", "【5分以内】J-CROS Vision: COP(共通運用状況図)生成。被害推計を官邸ダッシュボードへ配信");
+                document.getElementById('stVision').innerText = "COP 配信中";
+                document.getElementById('stVision').className = "text-[10px] text-emerald-400 font-bold";
+                document.getElementById('aiConfidence').innerText = "CONFIDENCE: 98.2%";
+                document.getElementById('aiConsole').innerHTML = `<p class="text-amber-300 font-bold">【初動AI提示】静岡・愛知・三重・高知に最優先リソース投入を即時選定。</p>`;
+            }
+
+            // [15分〜20分以内] J-CROS Command 指揮出動発出
+            if (mins === 15) {
+                addLog("00:15", "【15分以内】J-CROS AI: 初動リソース配置案・優先救助エリアを自動提示");
+                addLog("00:20", "【20分以内】J-CROS Command: 警察・消防・自衛隊・海保へ広域出動命令を電子決裁発出");
+                document.getElementById('stCommand').innerText = "出動命令発出済";
+                document.getElementById('stCommand').className = "text-[10px] text-emerald-400 font-bold";
+                document.getElementById('hudUnits').innerText = "55,000 隊 (出動指示)";
+
+                // 進入ルート描画
+                L.polyline([[35.68, 139.69], [34.97, 138.38]], { color: '#10b981', weight: 5, dashArray: '8,8' }).addTo(gisSimGroup);
+                L.polyline([[35.18, 136.90], [34.73, 136.50]], { color: '#10b981', weight: 5, dashArray: '8,8' }).addTo(gisSimGroup);
+            }
+
+            // [1時間以内] J-CROS Logistics プッシュ型物資支援
+            if (mins === 60) {
+                addLog("01:00", "【1時間以内】J-CROS Logistics: プッシュ型物資輸送計画を策定。指定緊急輸送道路を自動指定");
+                document.getElementById('stLogistics').innerText = "プッシュ輸送稼働";
+                document.getElementById('stLogistics').className = "text-[10px] text-amber-400 font-bold";
+                document.getElementById('hudUnits').innerText = "125,000 名 / 物資ピストン開始";
+            }
+
+            // [3時間以内] J-CROS Medical 広域医療搬送 (DMAT)
+            if (mins === 180) {
+                addLog("03:00", "【3時間以内】J-CROS Medical: DMAT広域医療搬送(SCU)マッチング開始。第1陣現場到達");
+                document.getElementById('stMedical').innerText = "SCU マッチング中";
+                document.getElementById('stMedical').className = "text-[10px] text-blue-400 font-bold";
+            }
+
+            // [24時間以降] J-CROS Recovery 応急復旧モード移行
+            if (mins >= 1440) {
+                addLog("24:00", "【24時間到達】J-CROS Recovery: 応急復旧モードへ移行。電力・通信・応急仮設住宅建設の一元管理を開始");
+                document.getElementById('stRecovery').innerText = "復旧進捗一元管理";
+                document.getElementById('stRecovery').className = "text-[10px] text-orange-400 font-bold";
+                document.getElementById('hudPhase').innerText = "応急復旧・生活再建 (24h〜)";
+                document.getElementById('hudPhase').className = "font-bold text-orange-400";
+                clearInterval(simTimer);
+            }
+        }
+
+        function addLog(timeStr, text) {
+            const logs = document.getElementById('timelineLogs');
+            const item = document.createElement('div');
+            item.className = "p-1 bg-slate-900/90 rounded border-l-2 border-blue-500 text-slate-200";
+            item.innerHTML = `<span class="text-blue-400 font-bold">[${timeStr}]</span> ${text}`;
+            logs.prepend(item);
+        }
+    </script>
+</body>
+</html>
