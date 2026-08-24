@@ -34,12 +34,12 @@
             }
         }
     </script>
-    <!-- Leaflet CSS & JS for Map -->
+    <!-- Leaflet CSS & JS for GIS Map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <!-- Chart.js -->
+    <!-- Chart.js for Logistics and Medical analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -56,7 +56,6 @@
         .leaflet-container {
             background: #090d16 !important;
         }
-        /* Custom map control dark theme */
         .leaflet-control-layers, .leaflet-bar {
             background-color: #121826 !important;
             border: 1px solid #1f293d !important;
@@ -86,18 +85,20 @@
         .custom-scroll::-webkit-scrollbar-thumb:hover {
             background: #3b82f6;
         }
-        .glow-red {
-            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
-        }
-        .glow-blue {
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
-        }
         .pulse-slow {
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
+        }
+        .jalert-banner {
+            background: linear-gradient(90deg, #991b1b 0%, #dc2626 50%, #991b1b 100%);
+            animation: jalertPulse 1.5s infinite alternate;
+        }
+        @keyframes jalertPulse {
+            0% { opacity: 0.85; }
+            100% { opacity: 1; filter: drop-shadow(0 0 10px #ef4444); }
         }
     </style>
 </head>
@@ -113,58 +114,80 @@
                 <div>
                     <div class="flex items-center space-x-2">
                         <h1 class="text-base font-bold tracking-wider text-slate-100 font-mono">J-CROS</h1>
-                        <span class="text-[10px] bg-red-900/60 border border-red-500/50 text-red-300 font-mono px-2 py-0.5 rounded tracking-widest uppercase animate-pulse">閣議決定済・国家危機管理OS</span>
+                        <span class="text-[10px] bg-red-900/60 border border-red-500/50 text-red-300 font-mono px-2 py-0.5 rounded tracking-widest uppercase animate-pulse">閣議決定済・国家統合危機管理OS</span>
                     </div>
-                    <p class="text-[11px] text-slate-400">Japan Crisis Response Operating System - 共通運用状況画面 (COP)</p>
+                    <p class="text-[11px] text-slate-400">Japan Crisis Response Operating System - 官民公開データ統合運用画面 (COP)</p>
                 </div>
             </div>
 
             <!-- Operational Status Indicator -->
             <div class="hidden md:flex items-center space-x-2 bg-darkbg px-3 py-1.5 rounded-lg border border-darkborder text-xs font-mono">
-                <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <span id="current-mode-dot" class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
                 <span class="text-slate-400">MODE:</span>
-                <span id="current-mode-label" class="text-emerald-400 font-semibold">【平時】全天候常時監視</span>
+                <span id="current-mode-label" class="text-emerald-400 font-semibold">【平時】官民データリアルタイム統合監視</span>
             </div>
         </div>
 
         <!-- Emergency Trigger & Scenario Controls -->
-        <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2">
+            <!-- Open Data Sync Badge -->
             <div class="hidden lg:flex items-center space-x-3 text-xs text-slate-400 bg-darkbg/80 px-3 py-1.5 rounded-lg border border-darkborder font-mono">
-                <div><i class="fa-solid fa-satellite-dish text-sky-400 mr-1"></i>SOBO-WEB: <span class="text-emerald-400">ONLINE</span></div>
+                <div><i class="fa-solid fa-cloud-sun text-amber-400 mr-1"></i>気象庁API: <span id="jma-api-status" class="text-emerald-400">同期完了</span></div>
                 <div class="border-r border-darkborder h-3"></div>
-                <div><i class="fa-solid fa-network-wired text-indigo-400 mr-1"></i>SIP4D: <span class="text-emerald-400">ONLINE</span></div>
+                <div><i class="fa-solid fa-map-location-dot text-sky-400 mr-1"></i>地理院/SIP4D: <span class="text-emerald-400">ONLINE</span></div>
                 <div class="border-r border-darkborder h-3"></div>
-                <div><i class="fa-solid fa-wifi text-amber-400 mr-1"></i>Starlink: <span class="text-emerald-400">99.8%</span></div>
+                <div><i class="fa-solid fa-tower-cell text-red-400 mr-1"></i>L-ALERT: <span class="text-emerald-400">連動中</span></div>
             </div>
 
-            <button id="sim-trigger-btn" onclick="toggleEmergencySim()" class="bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg shadow-red-900/50 border border-red-400/40 transition-all flex items-center space-x-2 cursor-pointer">
-                <i class="fa-solid fa-triangle-exclamation text-amber-300 animate-bounce"></i>
-                <span id="sim-btn-text">首都直下/南海トラフ連動発災シミュレーション</span>
-            </button>
+            <!-- Multi-Mode Switcher Buttons -->
+            <div class="flex items-center space-x-1.5 bg-darkbg p-1 rounded-xl border border-darkborder">
+                <button id="btn-mode-normal" onclick="switchMode('normal')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-400 bg-slate-800 border border-slate-700 transition-all">
+                    平時
+                </button>
+                <button id="btn-mode-disaster" onclick="switchMode('disaster')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-300 hover:bg-slate-800 transition-all flex items-center space-x-1">
+                    <i class="fa-solid fa-house-chimney-crack"></i>
+                    <span class="hidden sm:inline">大規模自然災害</span>
+                </button>
+                <button id="btn-mode-civil" onclick="switchMode('civil')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-300 hover:bg-slate-800 transition-all flex items-center space-x-1">
+                    <i class="fa-solid fa-person-military-pointing"></i>
+                    <span>国民保護事態</span>
+                </button>
+            </div>
 
             <!-- Realtime Clock -->
-            <div class="text-right font-mono text-xs hidden sm:block">
-                <div id="live-time" class="text-slate-200 font-bold">2026-08-25 01:29:23 JST</div>
-                <div class="text-[10px] text-slate-500">JST / UTC+9 (5s sync)</div>
+            <div class="text-right font-mono text-xs hidden xl:block ml-2">
+                <div id="live-time" class="text-slate-200 font-bold">2026-08-25 01:40:00 JST</div>
+                <div class="text-[10px] text-slate-500">JST / UTC+9 (気象庁・国土地理院同期)</div>
             </div>
         </div>
     </header>
 
+    <!-- J-ALERT Emergency Banner (Shown in Civil Protection Mode) -->
+    <div id="jalert-banner" class="hidden jalert-banner text-white px-4 py-2 z-20 flex items-center justify-between border-b border-red-400/40 shadow-2xl font-mono text-xs font-bold">
+        <div class="flex items-center space-x-3">
+            <span class="bg-black/60 text-yellow-300 px-2 py-0.5 rounded border border-yellow-400/50 text-[11px] animate-bounce"><i class="fa-solid fa-triangle-exclamation mr-1"></i>J-ALERT 緊急情報</span>
+            <span>【国民保護情報】弾道ミサイル発射および武力攻撃懸念事態発令。該当地域の住民は地下施設または堅牢な建物へ屋内退避してください。</span>
+        </div>
+        <div class="text-[10px] bg-black/40 px-2 py-1 rounded text-red-200 border border-red-400/30">
+            武力攻撃事態等要領 第14条適用
+        </div>
+    </div>
+
     <!-- Main Content Area -->
     <div class="flex-1 flex overflow-hidden relative">
 
-        <!-- Left Subsystems Sidebar Nav (J-CROS Modules) -->
+        <!-- Left Subsystems Sidebar Nav -->
         <aside class="w-16 md:w-56 bg-darkcard border-r border-darkborder flex flex-col justify-between shrink-0 z-20">
             <div class="py-3 px-2">
-                <div class="text-[10px] font-mono text-slate-500 uppercase px-3 mb-2 hidden md:block">Subsystems (8 Modules)</div>
+                <div class="text-[10px] font-mono text-slate-500 uppercase px-3 mb-2 hidden md:block">官民統合 8モジュール</div>
                 <nav class="space-y-1">
                     <button onclick="switchTab('vision')" id="nav-vision" class="nav-tab active w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-sky-400 bg-sky-950/40 border border-sky-800/50 transition-all">
                         <i class="fa-solid fa-earth-asia text-base text-sky-400 w-5"></i>
-                        <span class="hidden md:inline font-bold">1. Vision (災情)</span>
+                        <span class="hidden md:inline font-bold">1. Vision (官民災情)</span>
                     </button>
                     <button onclick="switchTab('resource')" id="nav-resource" class="nav-tab w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all">
                         <i class="fa-solid fa-shield-halved text-base text-indigo-400 w-5"></i>
-                        <span class="hidden md:inline">2. Resource (資源)</span>
+                        <span class="hidden md:inline">2. Resource (官民資源)</span>
                     </button>
                     <button onclick="switchTab('ai')" id="nav-ai" class="nav-tab w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all">
                         <i class="fa-solid fa-brain text-base text-purple-400 w-5"></i>
@@ -176,34 +199,34 @@
                     </button>
                     <button onclick="switchTab('logistics')" id="nav-logistics" class="nav-tab w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all">
                         <i class="fa-solid fa-truck-fast text-base text-amber-400 w-5"></i>
-                        <span class="hidden md:inline">5. Logistics (物資)</span>
+                        <span class="hidden md:inline">5. Logistics (民間物資)</span>
                     </button>
                     <button onclick="switchTab('medical')" id="nav-medical" class="nav-tab w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all">
                         <i class="fa-solid fa-notes-medical text-base text-emerald-400 w-5"></i>
-                        <span class="hidden md:inline">6. Medical (医療)</span>
+                        <span class="hidden md:inline">6. Medical (広域医療)</span>
                     </button>
                     <button onclick="switchTab('recovery')" id="nav-recovery" class="nav-tab w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all">
                         <i class="fa-solid fa-hammer text-base text-orange-400 w-5"></i>
-                        <span class="hidden md:inline">7. Recovery (応急復旧)</span>
+                        <span class="hidden md:inline">7. Recovery (インフラ復旧)</span>
                     </button>
                     <button onclick="switchTab('security')" id="nav-security" class="nav-tab w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all">
                         <i class="fa-solid fa-lock text-base text-teal-400 w-5"></i>
-                        <span class="hidden md:inline">8. Security (ゼロトラスト)</span>
+                        <span class="hidden md:inline">8. Security (通信・防護)</span>
                     </button>
                 </nav>
             </div>
 
-            <!-- Footer info in panel -->
+            <!-- Footer info -->
             <div class="p-3 border-t border-darkborder hidden md:block">
                 <div class="text-[10px] text-slate-500 font-mono">
                     <div>管轄: 内閣官房 / デジタル庁</div>
-                    <div>バージョン: J-CROS v2.4</div>
-                    <div class="text-slate-600 mt-1">基盤: 国土地理院・SIP4D</div>
+                    <div>データ源: 気象庁 / 地理院 / SIP4D</div>
+                    <div class="text-slate-600 mt-1">民間連携: 電気・通信・交通・物流</div>
                 </div>
             </div>
         </aside>
 
-        <!-- Center Main Map Viewport (Leaflet + GSI Map Layers) -->
+        <!-- Center Main Map Viewport -->
         <main class="flex-1 relative flex flex-col min-w-0">
             
             <!-- Map Top Overlay Controls & Timeline -->
@@ -211,8 +234,8 @@
                 <!-- Timeline Slider Box -->
                 <div class="pointer-events-auto bg-darkcard/90 backdrop-blur border border-darkborder rounded-xl p-2.5 shadow-2xl flex-1 max-w-xl">
                     <div class="flex items-center justify-between text-xs font-mono mb-1.5">
-                        <span class="text-slate-300 font-bold flex items-center"><i class="fa-regular fa-clock text-sky-400 mr-1.5"></i>発災対応プログレス:</span>
-                        <span id="timeline-phase-text" class="text-amber-400 font-bold">発災後 0分 (緊急起動待機)</span>
+                        <span class="text-slate-300 font-bold flex items-center"><i class="fa-regular fa-clock text-sky-400 mr-1.5"></i>発災フェーズド・プログレス:</span>
+                        <span id="timeline-phase-text" class="text-amber-400 font-bold">発災後 0分 (平時・リアルタイム常時監視中)</span>
                     </div>
                     <input type="range" id="timeline-range" min="0" max="6" value="0" step="1" oninput="updateTimeline(this.value)" class="w-full accent-sky-500 bg-slate-800 rounded-lg h-2 cursor-pointer">
                     <div class="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
@@ -229,74 +252,140 @@
                 <!-- GIS Map Layer Switcher Floating Pill -->
                 <div class="pointer-events-auto bg-darkcard/90 backdrop-blur border border-darkborder rounded-xl p-2 shadow-2xl flex items-center space-x-1 text-xs">
                     <span class="text-[10px] font-mono text-slate-400 px-2">地図基盤:</span>
-                    <button onclick="setBaseMap('gsi_std')" id="map-btn-std" class="px-2.5 py-1 rounded-md bg-slate-800 text-sky-400 font-bold text-[11px] border border-slate-700">国土地理院(標準)</button>
-                    <button onclick="setBaseMap('gsi_photo')" id="map-btn-photo" class="px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 text-[11px]">空中写真</button>
-                    <button onclick="setBaseMap('osm')" id="map-btn-osm" class="px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 text-[11px]">OSM Dark</button>
+                    <button onclick="setBaseMap('gsi_std')" id="map-btn-std" class="px-2 py-1 rounded bg-slate-800 text-sky-400 font-bold text-[11px] border border-slate-700">地理院標準</button>
+                    <button onclick="setBaseMap('gsi_photo')" id="map-btn-photo" class="px-2 py-1 rounded hover:bg-slate-800 text-slate-300 text-[11px]">空中写真</button>
+                    <button onclick="setBaseMap('gsi_pale')" id="map-btn-pale" class="px-2 py-1 rounded hover:bg-slate-800 text-slate-300 text-[11px]">淡色地図</button>
+                    <button onclick="setBaseMap('osm')" id="map-btn-osm" class="px-2 py-1 rounded hover:bg-slate-800 text-slate-300 text-[11px]">Dark</button>
                 </div>
             </div>
 
-            <!-- Hazardous Map Layers Controls Panel (Left Floating Overlay) -->
-            <div class="absolute top-28 left-3 z-10 bg-darkcard/90 backdrop-blur border border-darkborder rounded-xl p-3 shadow-2xl w-56 text-xs text-slate-300">
+            <!-- Hazardous & Open Data Layer Controls Panel (Left Floating Overlay) -->
+            <div class="absolute top-28 left-3 z-10 bg-darkcard/90 backdrop-blur border border-darkborder rounded-xl p-3 shadow-2xl w-64 text-xs text-slate-300 max-h-[calc(100vh-160px)] overflow-y-auto custom-scroll">
                 <div class="font-bold font-mono text-sky-400 mb-2 flex items-center justify-between border-b border-darkborder pb-1">
-                    <span><i class="fa-solid fa-layer-group mr-1.5"></i>官民ビッグデータ</span>
-                    <span class="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">GSI/MLIT</span>
+                    <span><i class="fa-solid fa-layer-group mr-1.5"></i>官民公開オープンデータ</span>
+                    <button onclick="fetchJMAQuakeData()" class="text-[9px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-0.5 rounded border border-slate-700 font-mono"><i class="fa-solid fa-arrows-rotate mr-1"></i>再取得</button>
                 </div>
-                <div class="space-y-2 font-sans">
-                    <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
-                        <input type="checkbox" id="layer-hazard-flood" onchange="toggleHazardLayer('flood')" class="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-sky-500">
-                        <span>洪水浸水想定区域</span>
-                    </label>
-                    <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
-                        <input type="checkbox" id="layer-hazard-sediment" onchange="toggleHazardLayer('sediment')" class="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-amber-500">
-                        <span>土砂災害警戒区域</span>
-                    </label>
-                    <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
-                        <input type="checkbox" id="layer-hazard-tsunami" onchange="toggleHazardLayer('tsunami')" class="rounded bg-slate-800 border-slate-700 text-teal-500 focus:ring-teal-500">
-                        <span>津波浸水想定</span>
-                    </label>
-                    <div class="border-t border-darkborder pt-2 mt-2"></div>
-                    <div class="text-[10px] font-mono text-slate-400 mb-1">動的リアルタイムアセット</div>
-                    <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
-                        <input type="checkbox" id="layer-sdf" checked onchange="toggleAssetLayer('sdf')" class="rounded bg-slate-800 border-slate-700 text-blue-500">
-                        <span class="flex items-center"><i class="fa-solid fa-person-military-rifle text-blue-400 w-4"></i>自衛隊・警察・消防</span>
-                    </label>
-                    <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
-                        <input type="checkbox" id="layer-medical" checked onchange="toggleAssetLayer('medical')" class="rounded bg-slate-800 border-slate-700 text-emerald-500">
-                        <span class="flex items-center"><i class="fa-solid fa-truck-medical text-emerald-400 w-4"></i>DMAT / 救急病院</span>
-                    </label>
-                    <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
-                        <input type="checkbox" id="layer-logistics" checked onchange="toggleAssetLayer('logistics')" class="rounded bg-slate-800 border-slate-700 text-amber-500">
-                        <span class="flex items-center"><i class="fa-solid fa-boxes-packing text-amber-400 w-4"></i>物資拠点 / 孤立エリア</span>
-                    </label>
+                <div class="space-y-2.5 font-sans">
+                    <!-- Public Sector Open Data -->
+                    <div>
+                        <div class="text-[10px] font-mono text-sky-300 font-bold flex items-center justify-between">
+                            <span>1. 官庁・公的機関 (気象庁・地理院・消防庁)</span>
+                        </div>
+                        <div class="mt-1 space-y-1 pl-1">
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-jma-quake" checked onchange="toggleOpenDataLayer('jma_quake')" class="rounded bg-slate-800 border-slate-700 text-red-500">
+                                <span class="flex items-center"><i class="fa-solid fa-house-tsunami text-red-400 w-4"></i>気象庁 最新震源・震度分布</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-hazard-flood" onchange="toggleHazardLayer('flood')" class="rounded bg-slate-800 border-slate-700 text-sky-500">
+                                <span class="flex items-center"><i class="fa-solid fa-water text-sky-400 w-4"></i>国土地理院 洪水浸水想定</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-hazard-sediment" onchange="toggleHazardLayer('sediment')" class="rounded bg-slate-800 border-slate-700 text-amber-500">
+                                <span class="flex items-center"><i class="fa-solid fa-hill-rockslide text-amber-400 w-4"></i>国土地理院 土砂災害警戒</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-hazard-tsunami" onchange="toggleHazardLayer('tsunami')" class="rounded bg-slate-800 border-slate-700 text-teal-500">
+                                <span class="flex items-center"><i class="fa-solid fa-wave-square text-teal-400 w-4"></i>国土地理院 津波浸水想定</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-public-evac" checked onchange="toggleOpenDataLayer('evac')" class="rounded bg-slate-800 border-slate-700 text-emerald-500">
+                                <span class="flex items-center"><i class="fa-solid fa-person-shelter text-emerald-400 w-4"></i>指定緊急避難場所 (全国オープンデータ)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-darkborder pt-2"></div>
+
+                    <!-- Civil Protection Specific Layers -->
+                    <div>
+                        <div class="text-[10px] font-mono text-purple-300 font-bold flex items-center">
+                            <i class="fa-solid fa-shield-cat mr-1"></i>2. 国民保護法 指定避難施設・J-ALERT
+                        </div>
+                        <div class="mt-1 space-y-1 pl-1">
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-civil-shelters" onchange="toggleCivilProtectionLayer('shelters')" class="rounded bg-slate-800 border-slate-700 text-purple-500">
+                                <span class="flex items-center"><i class="fa-solid fa-building-shield text-purple-400 w-4"></i>地下駅・地下街 (緊急一時避難施設)</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-civil-alertzone" onchange="toggleCivilProtectionLayer('alertzone')" class="rounded bg-slate-800 border-slate-700 text-red-500">
+                                <span class="flex items-center"><i class="fa-solid fa-circle-radiation text-red-400 w-4"></i>J-ALERT 警戒・通過対象エリア</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-darkborder pt-2"></div>
+
+                    <!-- Private Sector & Infrastructure Open Data -->
+                    <div>
+                        <div class="text-[10px] font-mono text-amber-300 font-bold flex items-center">
+                            <i class="fa-solid fa-bolt mr-1"></i>3. 民間インフラ・ライフライン
+                        </div>
+                        <div class="mt-1 space-y-1 pl-1">
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-private-power" checked onchange="toggleOpenDataLayer('power')" class="rounded bg-slate-800 border-slate-700 text-amber-400">
+                                <span class="flex items-center"><i class="fa-solid fa-plug-circle-bolt text-amber-400 w-4"></i>電力会社 停電・設備影響</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-private-telecom" checked onchange="toggleOpenDataLayer('telecom')" class="rounded bg-slate-800 border-slate-700 text-sky-400">
+                                <span class="flex items-center"><i class="fa-solid fa-wifi text-sky-400 w-4"></i>通信キャリア 基地局障害ステーション</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-private-rail" checked onchange="toggleOpenDataLayer('rail')" class="rounded bg-slate-800 border-slate-700 text-indigo-400">
+                                <span class="flex items-center"><i class="fa-solid fa-train text-indigo-400 w-4"></i>公共交通・鉄道運行見合わせ路線</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-darkborder pt-2"></div>
+
+                    <!-- Dynamic Responders -->
+                    <div>
+                        <div class="text-[10px] font-mono text-slate-400">4. 救助・医療動態アセット</div>
+                        <div class="mt-1 space-y-1 pl-1">
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-sdf" checked onchange="toggleAssetLayer('sdf')" class="rounded bg-slate-800 border-slate-700 text-blue-500">
+                                <span class="flex items-center"><i class="fa-solid fa-person-military-rifle text-blue-400 w-4"></i>自衛隊・警察・PAC-3</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-medical" checked onchange="toggleAssetLayer('medical')" class="rounded bg-slate-800 border-slate-700 text-emerald-500">
+                                <span class="flex items-center"><i class="fa-solid fa-truck-medical text-emerald-400 w-4"></i>DMAT / 災害拠点病院</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:text-white">
+                                <input type="checkbox" id="layer-logistics" checked onchange="toggleAssetLayer('logistics')" class="rounded bg-slate-800 border-slate-700 text-amber-500">
+                                <span class="flex items-center"><i class="fa-solid fa-boxes-packing text-amber-400 w-4"></i>民間物流拠点 / 支援備蓄</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Leaflet Map Canvas Element -->
+            <!-- Leaflet Map Canvas -->
             <div id="cop-map" class="w-full flex-1"></div>
 
             <!-- Bottom Floating Status Bar -->
             <div class="absolute bottom-3 left-3 right-3 z-10 bg-darkcard/90 backdrop-blur border border-darkborder rounded-xl px-4 py-2 text-xs font-mono flex items-center justify-between text-slate-400">
                 <div class="flex items-center space-x-4 overflow-x-auto">
                     <div><span class="text-slate-500">緯度経度:</span> <span id="map-coords" class="text-slate-200">35.6812, 139.7671</span></div>
-                    <div><span class="text-slate-500">ズーム:</span> <span id="map-zoom" class="text-slate-200">10</span></div>
+                    <div><span class="text-slate-500">ズーム:</span> <span id="map-zoom" class="text-slate-200">9</span></div>
+                    <div><span class="text-slate-500">気象庁最新地震:</span> <span id="stat-quake-latest" class="text-sky-400 font-bold">千葉県北東部 M4.2 (最大震度3)</span></div>
                     <div><span class="text-slate-500">自衛隊動員:</span> <span id="stat-sdf" class="text-sky-400 font-bold">12,400名</span></div>
-                    <div><span class="text-slate-500">消防・警察:</span> <span id="stat-fire" class="text-amber-400 font-bold">8,900隊</span></div>
                     <div><span class="text-slate-500">DMAT展開:</span> <span id="stat-dmat" class="text-emerald-400 font-bold">142隊</span></div>
                 </div>
-                <div class="hidden lg:block text-[11px] text-slate-500">J-CROS Vision 5秒間隔ストリーミング接続中</div>
+                <div class="hidden lg:block text-[11px] text-slate-500">J-CROS Open Data Hub 連動中</div>
             </div>
         </main>
 
         <!-- Right Analytical Dashboard Panel -->
         <aside class="w-80 lg:w-96 bg-darkcard border-l border-darkborder flex flex-col shrink-0 z-20">
             
-            <!-- Module Title / Dynamic Header -->
+            <!-- Dynamic Module Title -->
             <div class="p-3 border-b border-darkborder bg-slate-900/50 flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                     <span id="tab-icon" class="text-sky-400 text-lg"><i class="fa-solid fa-earth-asia"></i></span>
-                    <h2 id="tab-title" class="font-bold text-sm text-slate-100 font-mono">1. J-CROS Vision (全国災情統合)</h2>
+                    <h2 id="tab-title" class="font-bold text-sm text-slate-100 font-mono">1. J-CROS Vision (官民災情統合)</h2>
                 </div>
-                <span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded font-mono">LIVE</span>
+                <span class="text-[10px] bg-sky-950 text-sky-300 border border-sky-800/80 px-2 py-0.5 rounded font-mono">LIVE API</span>
             </div>
 
             <!-- Scrollable Dynamic Subsystem Content Box -->
@@ -304,7 +393,7 @@
 
                 <!-- Dynamic Container for active Subsystem UI -->
                 <div id="subsystem-content">
-                    <!-- Default: J-CROS Vision content -->
+                    <!-- Default content loaded dynamically via JavaScript -->
                 </div>
 
                 <!-- J-CROS AI Intelligence & Gemini Copilot Box -->
@@ -312,18 +401,25 @@
                     <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                         <div class="flex items-center space-x-2 text-purple-300 font-bold text-xs font-mono">
                             <i class="fa-solid fa-sparkles text-purple-400 animate-pulse"></i>
-                            <span>J-CROS AI ( Gemini 3 Flash コックピット)</span>
+                            <span>J-CROS AI (Gemini 3 Flash コックピット)</span>
                         </div>
                         <span class="text-[9px] bg-purple-950 text-purple-300 border border-purple-800/60 px-1.5 py-0.5 rounded">Grounding対応</span>
                     </div>
 
                     <div id="ai-response-box" class="text-xs text-slate-300 bg-darkbg p-3 rounded-lg border border-slate-800 leading-relaxed font-sans min-h-[90px] max-h-48 overflow-y-auto custom-scroll">
-                        <p class="text-slate-400 italic">J-CROS AIエンジン準備完了。状況分析または指示を入力してください。緊急時は発災シミュレーションを実行できます。</p>
+                        <p class="text-slate-400 italic">J-CROS AIエンジン準備完了。気象庁・地理院・民間インフラ情報を解析し、最適な意志決定提言を出力します。</p>
+                    </div>
+
+                    <!-- AI Preset Quick Query Buttons -->
+                    <div class="flex flex-wrap gap-1 text-[10px]">
+                        <button onclick="quickAIQuery('官民インフラ復旧ボトルネックの優先要約')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700">インフラ復旧優先度</button>
+                        <button onclick="quickAIQuery('気象庁最新警報と被害影響の総括')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700">気象・地震要約</button>
+                        <button onclick="quickAIQuery('帰宅困難者・避難所支援の最適な民間物資配分')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700">物資最適配分</button>
                     </div>
 
                     <!-- AI Interaction Input Box -->
                     <div class="flex space-x-2">
-                        <input type="text" id="ai-query-input" placeholder="例: 被害規模推計と最優先救助エリアの出力..." class="flex-1 bg-darkbg text-xs border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500">
+                        <input type="text" id="ai-query-input" placeholder="例: 気象庁情報に基づく優先救助指示..." class="flex-1 bg-darkbg text-xs border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500">
                         <button onclick="askGeminiAI()" class="bg-purple-700 hover:bg-purple-600 text-white text-xs px-3 py-1.5 rounded-lg font-bold flex items-center justify-center transition-all">
                             <i class="fa-solid fa-paper-plane"></i>
                         </button>
@@ -333,20 +429,20 @@
                 <!-- Realtime Action Stream Feed -->
                 <div class="bg-darkbg rounded-xl border border-darkborder p-3 space-y-2">
                     <div class="flex items-center justify-between text-xs font-mono font-bold text-slate-300">
-                        <span><i class="fa-solid fa-list-check text-sky-400 mr-1.5"></i>統合アクティビティログ</span>
-                        <span class="text-[10px] text-slate-500">リアルタイム同期</span>
+                        <span><i class="fa-solid fa-list-check text-sky-400 mr-1.5"></i>官民オープンデータ同期ログ</span>
+                        <span class="text-[10px] text-slate-500">リアルタイム</span>
                     </div>
                     <div id="action-log-list" class="space-y-1.5 text-[11px] font-mono text-slate-400 max-h-40 overflow-y-auto custom-scroll">
                         <div class="flex items-start space-x-2 text-slate-400 border-l-2 border-slate-600 pl-2">
-                            <span class="text-[10px] text-slate-500 shrink-0">01:29:20</span>
-                            <div>システム初期化完了。国土地理院/SIP4Dデータ接続正常。</div>
+                            <span class="text-[10px] text-slate-500 shrink-0">01:40:00</span>
+                            <div>J-CROS システム起動。気象庁API/国土地理院ハザードマップ連携正常。</div>
                         </div>
                     </div>
                 </div>
 
             </div>
 
-            <!-- Bottom Legal / Electronic Signature Indicator for Command Mode -->
+            <!-- Bottom Legal Indicator -->
             <div class="p-3 border-t border-darkborder bg-slate-900/80 text-[11px] font-mono flex items-center justify-between text-slate-400">
                 <div class="flex items-center space-x-1.5">
                     <i class="fa-solid fa-key text-amber-400"></i>
@@ -361,65 +457,117 @@
         // Global State Management
         let map;
         let currentBaseMap = 'gsi_std';
-        let isEmergency = false;
+        let currentSystemMode = 'normal'; // 'normal', 'disaster', 'civil'
         let currentTimelinePhase = 0;
         let activeTab = 'vision';
 
-        // Map Layers Containers
+        // Map Layer Groups
         let baseTileLayers = {};
         let hazardLayers = {};
+        let openDataLayers = {
+            jma_quake: L.layerGroup(),
+            evac: L.layerGroup(),
+            power: L.layerGroup(),
+            telecom: L.layerGroup(),
+            rail: L.layerGroup()
+        };
+        let civilProtectionLayers = {
+            shelters: L.layerGroup(),
+            alertzone: L.layerGroup()
+        };
         let assetMarkerGroups = {
             sdf: L.layerGroup(),
             medical: L.layerGroup(),
             logistics: L.layerGroup()
         };
 
-        // Realtime Assets Mock Data (Coordinates centered around Kanto/Tokai Japan)
+        // Open Data - Designated Emergency Shelters (全国指定緊急避難場所データ)
+        const openDataEvacShelters = [
+            { lat: 35.6895, lng: 139.6917, title: '新宿中央公園 (指定緊急避難場所)', type: '地震・火災', cap: '120,000人', color: '#10b981' },
+            { lat: 35.6852, lng: 139.7528, title: '皇居外苑・日比谷公園地区', type: '大規模火災・避難', cap: '250,000人', color: '#10b981' },
+            { lat: 35.7141, lng: 139.7741, title: '上野恩賜公園', type: '広域避難場所', cap: '150,000人', color: '#10b981' },
+            { lat: 35.6277, lng: 139.7711, title: 'おだいば海浜公園・有明地区', type: '津波・大規模火災避難', cap: '90,000人', color: '#10b981' },
+            { lat: 35.4437, lng: 139.6380, title: '横浜山下公園・港の見える丘公園', type: '津波避難・広域避難', cap: '80,000人', color: '#10b981' }
+        ];
+
+        // Civil Protection Shelters (国民保護指定地下施設)
+        const civilAssets = [
+            { lat: 35.6900, lng: 139.6920, title: '新宿駅地下街・都営地下鉄 (指定地下施設)', detail: '収容可能人数: 120,000人 / 耐衝撃地下避難指定', icon: 'fa-building-shield', color: '#a855f7' },
+            { lat: 35.6812, lng: 139.7671, title: '東京駅地下街・大手町地下歩道', detail: '収容可能人数: 200,000人 / 耐衝撃・気密地下施設', icon: 'fa-building-shield', color: '#a855f7' },
+            { lat: 35.6284, lng: 139.7387, title: '品川駅地下コンコース', detail: '収容可能人数: 85,000人 / 防災備蓄倉庫有', icon: 'fa-building-shield', color: '#a855f7' },
+            { lat: 35.3158, lng: 139.5503, title: '陸上自衛隊 横須賀地区PAC-3部隊', detail: '弾道ミサイル防衛 (BMD) 迎撃態勢準備完了', icon: 'fa-shield-cat', color: '#dc2626' }
+        ];
+
+        // Private Sector Infrastructure Data (電力・通信・鉄道)
+        const privateInfraData = {
+            power: [
+                { lat: 35.5300, lng: 139.7000, title: '東京電力 川崎火力・変電エリア', status: '正常稼働 (予備率8.2%)', color: '#f59e0b' },
+                { lat: 35.2000, lng: 139.1000, title: '西湘地区 変電・送電設備', status: '注意 (揺れによる自動保護装置監視)', color: '#f59e0b' }
+            ],
+            telecom: [
+                { lat: 35.6580, lng: 139.7016, title: '渋谷エリア 携帯3キャリア基地局', status: 'パケット通信トラフィック規制中 (平時1.8倍)', color: '#38bdf8' },
+                { lat: 35.1814, lng: 136.9064, title: '東海エリア 衛星携帯通信アンテナ', status: 'Starlink可搬型30基 待機中', color: '#38bdf8' }
+            ],
+            rail: [
+                { lat: 35.6812, lng: 139.7671, title: 'JR東日本 東海道新幹線・在来線', status: '全線正常運行 (安全自動点検体制維持)', color: '#818cf8' },
+                { lat: 35.6900, lng: 139.7000, title: '東京メトロ・都営地下鉄', status: '全線正常運行 (防潮扉自動制御レディ)', color: '#818cf8' }
+            ]
+        };
+
+        // Realtime Responders Data
         const mockAssets = {
             sdf: [
                 { lat: 35.6812, lng: 139.7671, title: '陸上自衛隊・朝霞駐屯地 (第1師団)', detail: '即応予備部隊 3,200名 待機中', icon: 'fa-shield-halved', color: '#3b82f6' },
                 { lat: 35.3056, lng: 139.6015, title: '海上自衛隊・横須賀基地', detail: '護衛艦・輸送艦 8隻 緊急出港準備', icon: 'fa-ship', color: '#2563eb' },
-                { lat: 35.7297, lng: 139.9833, title: '習志野駐屯地 (第1空挺団)', detail: 'ヘリ降下救助部隊 800名 出動可', icon: 'fa-plane-departure', color: '#1d4ed8' },
-                { lat: 35.1814, lng: 136.9064, title: '第10師団 (名古屋)', detail: '東海・南海トラフ対応部隊 4,500名', icon: 'fa-shield-halved', color: '#3b82f6' }
+                { lat: 35.7297, lng: 139.9833, title: '習志野駐屯地 (第1空挺団)', detail: 'ヘリ降下救助部隊 800名 出動可', icon: 'fa-plane-departure', color: '#1d4ed8' }
             ],
             medical: [
                 { lat: 35.6492, lng: 139.7523, title: '東京広域災害医療センター (SCU拠点)', detail: 'ICU病床空き: 12台 / DMAT: 6隊編成', icon: 'fa-hospital', color: '#10b981' },
-                { lat: 35.5308, lng: 139.7029, title: '川崎市立川崎病院 (災害拠点)', detail: '受入可能: 重症15 / 中等症40', icon: 'fa-notes-medical', color: '#059669' },
-                { lat: 35.0116, lng: 135.7681, title: '京都大学医学部附属病院 (DMAT派遣)', detail: 'DMAT 4隊 現地投入中', icon: 'fa-user-doctor', color: '#10b981' }
+                { lat: 35.5308, lng: 139.7029, title: '川崎市立川崎病院 (災害拠点)', detail: '受入可能: 重症15 / 中等症40', icon: 'fa-notes-medical', color: '#059669' }
             ],
             logistics: [
-                { lat: 35.6262, lng: 139.7741, title: '東京有明広域防災拠点 (物資備蓄)', detail: '食料100万食 / 飲料水200万L / 簡易トイレ20万', icon: 'fa-warehouse', color: '#f59e0b' },
-                { lat: 35.4437, lng: 139.6380, title: '横浜港南本牧埠頭 (物流コンテナ)', detail: '民間緊急物資 5,000トン 自動マッチング可', icon: 'fa-boxes-stacked', color: '#d97706' },
-                { lat: 35.1200, lng: 138.9200, title: '伊豆半島 孤立懸念地域 (要プッシュ物資)', detail: '道路分断リスク高 / ドローン配送ライン確保済', icon: 'fa-triangle-exclamation', color: '#ef4444' }
+                { lat: 35.6262, lng: 139.7741, title: '東京有明広域防災拠点 (官民物資備蓄)', detail: '食料100万食 / 飲料水200万L / 簡易トイレ20万', icon: 'fa-warehouse', color: '#f59e0b' },
+                { lat: 35.4437, lng: 139.6380, title: '横浜港南本牧埠頭 (民間物流コンテナ)', detail: '緊急支援物資 5,000トン 自動マッチング可', icon: 'fa-boxes-stacked', color: '#d97706' }
             ]
         };
 
-        // Initialize Map and App when DOM loaded
         window.onload = function() {
             initMap();
-            initCharts();
             renderSubsystemContent('vision');
             startClock();
-            addLog("J-CROS システム常時監視モード起動。全モジュール正常動態。");
+            fetchJMAQuakeData();
+            addLog("J-CROS システム起動。官民オープンデータ統合通信レイヤー正常。");
         };
 
         function initMap() {
-            // Centered on Tokyo Metropolitan Area / Central Japan
             map = L.map('cop-map', {
                 center: [35.6812, 139.7671],
                 zoom: 9,
                 zoomControl: true
             });
 
-            // GSI (国土地理院) Base Maps
+            // Map Panes
+            map.createPane('hazardPane');
+            map.getPane('hazardPane').style.zIndex = 350;
+            map.getPane('hazardPane').style.pointerEvents = 'none';
+
+            map.createPane('alertZonePane');
+            map.getPane('alertZonePane').style.zIndex = 380;
+
+            // Tile Layers
             baseTileLayers.gsi_std = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
                 maxZoom: 18,
-                attribution: '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'
+                attribution: '&copy; <a href="https://maps.gsi.go.jp/" target="_blank">国土地理院</a>'
             });
 
             baseTileLayers.gsi_photo = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', {
                 maxZoom: 18,
-                attribution: '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'
+                attribution: '&copy; 国土地理院'
+            });
+
+            baseTileLayers.gsi_pale = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '&copy; 国土地理院'
             });
 
             baseTileLayers.osm = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -427,32 +575,26 @@
                 attribution: '&copy; OpenStreetMap & CartoDB'
             });
 
-            // Set Default Tile Layer
             baseTileLayers.gsi_std.addTo(map);
 
-            // GSI Disaster Hazard Map Overlays (MLIT Hazard Maps)
+            // GSI Hazards
             hazardLayers.flood = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin_data/{z}/{x}/{y}.png', {
-                opacity: 0.6,
-                maxZoom: 17,
-                attribution: '国土交通省 洪水浸水想定'
+                opacity: 0.7, maxNativeZoom: 17, maxZoom: 18, pane: 'hazardPane', attribution: '国交省 洪水浸水想定'
             });
 
             hazardLayers.sediment = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/05_doshasaigai_kekkai_data/{z}/{x}/{y}.png', {
-                opacity: 0.65,
-                maxZoom: 17,
-                attribution: '国土交通省 土砂災害警戒区域'
+                opacity: 0.75, maxNativeZoom: 17, maxZoom: 18, pane: 'hazardPane', attribution: '国交省 土砂災害警戒区域'
             });
 
             hazardLayers.tsunami = L.tileLayer('https://disaportaldata.gsi.go.jp/raster/04_tsunami_newmerical_data/{z}/{x}/{y}.png', {
-                opacity: 0.65,
-                maxZoom: 17,
-                attribution: '国土交通省 津波浸水想定'
+                opacity: 0.75, maxNativeZoom: 17, maxZoom: 18, pane: 'hazardPane', attribution: '国交省 津波浸水想定'
             });
 
-            // Load Dynamic Asset Pins onto Map
+            // Initialize Open Data & Civil Overlays
+            initOpenDataLayers();
+            initCivilProtectionOverlays();
             renderAssetMarkers();
 
-            // Coordinate Tracking Event
             map.on('mousemove', function(e) {
                 document.getElementById('map-coords').innerText = `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
             });
@@ -461,94 +603,192 @@
             });
         }
 
-        // Base Map Switching logic
-        function setBaseMap(type) {
-            Object.values(baseTileLayers).forEach(layer => map.removeLayer(layer));
-            baseTileLayers[type].addTo(map);
-            currentBaseMap = type;
+        // Fetch Realtime Earthquake Data from JMA Open API
+        async function fetchJMAQuakeData() {
+            const badge = document.getElementById('jma-api-status');
+            if(badge) badge.innerText = "取得中...";
 
-            ['std', 'photo', 'osm'].forEach(b => {
-                const el = document.getElementById(`map-btn-${b}`);
-                if (el) {
-                    el.className = (b === type.replace('gsi_', '')) 
-                        ? "px-2.5 py-1 rounded-md bg-slate-800 text-sky-400 font-bold text-[11px] border border-slate-700" 
-                        : "px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 text-[11px]";
+            try {
+                const response = await fetch('https://www.jma.go.jp/bosai/quake/data/list.json');
+                if(!response.ok) throw new Error("JMA API Response Error");
+                const text = await response.text();
+                if (!text.trim().startsWith('[') && !text.trim().startsWith('{')) {
+                    throw new Error("Response is HTML or invalid JSON format");
                 }
-            });
-        }
+                const quakes = JSON.parse(text);
+                
+                openDataLayers.jma_quake.clearLayers();
 
-        // Toggle Hazard Layers
-        function toggleHazardLayer(layerKey) {
-            const isChecked = document.getElementById(`layer-hazard-${layerKey}`).checked;
-            if (isChecked) {
-                hazardLayers[layerKey].addTo(map);
-                addLog(`[GISデータ] ${getHazardName(layerKey)}レイヤーを共通運用状況画面(COP)へ重畳しました。`);
-            } else {
-                map.removeLayer(hazardLayers[layerKey]);
-            }
-        }
+                if (quakes && quakes.length > 0) {
+                    const latest = quakes[0];
+                    const locName = latest.anm || "千葉県北東部";
+                    const mag = latest.mag || "4.2";
+                    const maxInt = latest.maxi || "3";
+                    
+                    document.getElementById('stat-quake-latest').innerText = `${locName} M${mag} (最大震度${maxInt})`;
 
-        function getHazardName(key) {
-            if(key === 'flood') return '国土地理院 洪水浸水想定区域';
-            if(key === 'sediment') return '土砂災害警戒区域';
-            if(key === 'tsunami') return '津波浸水想定区域';
-            return key;
-        }
+                    // Plot latest 5 quakes on map
+                    quakes.slice(0, 5).forEach((q, idx) => {
+                        if (q.cod) {
+                            // Extract Lat Lng from cod string format "+35.2+140.3/"
+                            const parts = q.cod.match(/([+-]\d+\.\d+)([+-]\d+\.\d+)/);
+                            if (parts) {
+                                const lat = parseFloat(parts[1]);
+                                const lng = parseFloat(parts[2]);
 
-        // Toggle Asset Markers
-        function toggleAssetLayer(type) {
-            const isChecked = document.getElementById(`layer-${type}`).checked;
-            if (isChecked) {
-                assetMarkerGroups[type].addTo(map);
-            } else {
-                map.removeLayer(assetMarkerGroups[type]);
-            }
-        }
+                                const markerIcon = L.divIcon({
+                                    html: `<div class="w-7 h-7 rounded-full bg-red-600/90 border-2 border-white flex items-center justify-center text-white font-mono font-bold text-xs shadow-lg animate-pulse">震</div>`,
+                                    className: 'custom-map-pin',
+                                    iconSize: [28, 28]
+                                });
 
-        // Render Marker Layers
-        function renderAssetMarkers() {
-            Object.keys(mockAssets).forEach(type => {
-                assetMarkerGroups[type].clearLayers();
-                mockAssets[type].forEach(item => {
-                    const customHtml = `
-                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-slate-900 font-bold text-xs" style="background-color: ${item.color}; border-color: #0f172a;">
-                            <i class="fa-solid ${item.icon}"></i>
-                        </div>
-                    `;
-                    const customIcon = L.divIcon({
-                        html: customHtml,
-                        className: 'custom-map-pin',
-                        iconSize: [32, 32],
-                        iconAnchor: [16, 16]
+                                const popupHtml = `
+                                    <div class="p-2 font-sans text-slate-800">
+                                        <div class="font-bold text-sm text-red-600 border-b pb-1 mb-1"><i class="fa-solid fa-house-tsunami mr-1"></i>気象庁 地震情報 (第${idx+1}報)</div>
+                                        <div class="text-xs"><b>震源地:</b> ${q.anm || '不明'}</div>
+                                        <div class="text-xs"><b>マグニチュード:</b> M${q.mag || '不明'}</div>
+                                        <div class="text-xs"><b>最大震度:</b> 震度${q.maxi || '不明'}</div>
+                                        <div class="text-[10px] text-slate-500 mt-1">発生日時: ${q.ctt || '直近'} (気象庁公式)</div>
+                                    </div>
+                                `;
+
+                                const marker = L.marker([lat, lng], { icon: markerIcon }).bindPopup(popupHtml);
+                                openDataLayers.jma_quake.addLayer(marker);
+                            }
+                        }
                     });
 
-                    const popupContent = `
-                        <div class="p-2 text-slate-800 font-sans">
-                            <div class="font-bold text-sm text-slate-900 border-b border-slate-200 pb-1 mb-1">${item.title}</div>
-                            <div class="text-xs text-slate-600 mb-2">${item.detail}</div>
-                            <button onclick="dispatchResourceDirect('${item.title}')" class="w-full bg-blue-600 text-white text-xs py-1 rounded font-bold hover:bg-blue-700">J-CROS 出動・動態調整</button>
-                        </div>
-                    `;
+                    if(document.getElementById('layer-jma-quake').checked) {
+                        openDataLayers.jma_quake.addTo(map);
+                    }
+                }
+                if(badge) badge.innerText = "同期完了";
+                addLog("[気象庁API] 最新地震・津波情報を正常更新しました。");
+            } catch(e) {
+                if(badge) badge.innerText = "予備データ動作";
+                // Fallback Mock JMA Pin
+                openDataLayers.jma_quake.clearLayers();
+                const fallbackMarker = L.marker([35.700, 140.200], {
+                    icon: L.divIcon({
+                        html: `<div class="w-7 h-7 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white font-mono font-bold text-xs shadow-lg">震</div>`,
+                        className: 'custom-map-pin',
+                        iconSize: [28, 28]
+                    })
+                }).bindPopup("<b>気象庁 地震情報 (予備系)</b><br>千葉県北東部 M4.2 深さ40km 最大震度3");
+                openDataLayers.jma_quake.addLayer(fallbackMarker);
+                if(document.getElementById('layer-jma-quake').checked) {
+                    openDataLayers.jma_quake.addTo(map);
+                }
+            }
+        }
 
-                    const marker = L.marker([item.lat, item.lng], { icon: customIcon }).bindPopup(popupContent);
-                    assetMarkerGroups[type].addLayer(marker);
+        function initOpenDataLayers() {
+            // 1. Designated Shelters
+            openDataEvacShelters.forEach(s => {
+                const icon = L.divIcon({
+                    html: `<div class="w-6 h-6 rounded-full bg-emerald-600 border-2 border-slate-900 flex items-center justify-center text-white text-[10px]"><i class="fa-solid fa-person-shelter"></i></div>`,
+                    className: 'custom-pin',
+                    iconSize: [24, 24]
                 });
-                assetMarkerGroups[type].addTo(map);
+                const popup = `
+                    <div class="p-2 text-slate-800">
+                        <div class="font-bold text-xs text-emerald-700">${s.title}</div>
+                        <div class="text-[11px] text-slate-600">種別: ${s.type}</div>
+                        <div class="text-[11px] text-slate-600">収容容量: ${s.cap}</div>
+                        <span class="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-300">国土地理院・自治体オープンデータ</span>
+                    </div>
+                `;
+                const m = L.marker([s.lat, s.lng], { icon: icon }).bindPopup(popup);
+                openDataLayers.evac.addLayer(m);
+            });
+
+            // 2. Private Infra Layers
+            privateInfraData.power.forEach(p => {
+                const m = L.marker([p.lat, p.lng], {
+                    icon: L.divIcon({
+                        html: `<div class="w-6 h-6 rounded-full bg-amber-500 border border-black flex items-center justify-center text-black text-[10px]"><i class="fa-solid fa-bolt"></i></div>`,
+                        className: 'custom-pin', iconSize: [24, 24]
+                    })
+                }).bindPopup(`<div class="p-2 text-slate-800 font-sans"><b class="text-amber-600">${p.title}</b><br><span class="text-xs">${p.status}</span><br><span class="text-[9px] text-slate-500">電力会社オープンAPI</span></div>`);
+                openDataLayers.power.addLayer(m);
+            });
+
+            privateInfraData.telecom.forEach(t => {
+                const m = L.marker([t.lat, t.lng], {
+                    icon: L.divIcon({
+                        html: `<div class="w-6 h-6 rounded-full bg-sky-500 border border-black flex items-center justify-center text-black text-[10px]"><i class="fa-solid fa-wifi"></i></div>`,
+                        className: 'custom-pin', iconSize: [24, 24]
+                    })
+                }).bindPopup(`<div class="p-2 text-slate-800 font-sans"><b class="text-sky-600">${t.title}</b><br><span class="text-xs">${t.status}</span><br><span class="text-[9px] text-slate-500">通信キャリア共同連携</span></div>`);
+                openDataLayers.telecom.addLayer(m);
+            });
+
+            privateInfraData.rail.forEach(r => {
+                const m = L.marker([r.lat, r.lng], {
+                    icon: L.divIcon({
+                        html: `<div class="w-6 h-6 rounded-full bg-indigo-600 border border-white flex items-center justify-center text-white text-[10px]"><i class="fa-solid fa-train"></i></div>`,
+                        className: 'custom-pin', iconSize: [24, 24]
+                    })
+                }).bindPopup(`<div class="p-2 text-slate-800 font-sans"><b class="text-indigo-600">${r.title}</b><br><span class="text-xs">${r.status}</span><br><span class="text-[9px] text-slate-500">公共交通オープンデータ</span></div>`);
+                openDataLayers.rail.addLayer(m);
+            });
+
+            // Add default enabled layers to map
+            openDataLayers.evac.addTo(map);
+            openDataLayers.power.addTo(map);
+            openDataLayers.telecom.addTo(map);
+            openDataLayers.rail.addTo(map);
+        }
+
+        function initCivilProtectionOverlays() {
+            civilAssets.forEach(item => {
+                const customIcon = L.divIcon({
+                    html: `<div class="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-purple-900 font-bold text-xs bg-purple-600 pulse-slow"><i class="fa-solid ${item.icon}"></i></div>`,
+                    className: 'custom-map-pin', iconSize: [32, 32], iconAnchor: [16, 16]
+                });
+                const popupContent = `
+                    <div class="p-2 text-slate-800 font-sans">
+                        <div class="font-bold text-sm text-purple-950 border-b border-slate-200 pb-1 mb-1">${item.title}</div>
+                        <div class="text-xs text-slate-600 mb-2">${item.detail}</div>
+                        <span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded border border-purple-300">国民保護法第148条 指定地下施設</span>
+                    </div>
+                `;
+                const marker = L.marker([item.lat, item.lng], { icon: customIcon }).bindPopup(popupContent);
+                civilProtectionLayers.shelters.addLayer(marker);
+            });
+
+            const alertCircle = L.circle([35.6812, 139.7671], {
+                color: '#ef4444', fillColor: '#f87171', fillOpacity: 0.25, radius: 35000, pane: 'alertZonePane', dashArray: '6, 8'
+            }).bindPopup("<b class='text-red-600'>J-ALERT 警戒・退避対象領域</b><br>関東内陸部・屋内退避勧告区域");
+
+            civilProtectionLayers.alertzone.addLayer(alertCircle);
+        }
+
+        function renderAssetMarkers() {
+            Object.keys(mockAssets).forEach(key => {
+                assetMarkerGroups[key].clearLayers();
+                mockAssets[key].forEach(item => {
+                    const icon = L.divIcon({
+                        html: `<div class="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-md border-2 border-slate-900" style="background-color: ${item.color};"><i class="fa-solid ${item.icon}"></i></div>`,
+                        className: 'custom-map-pin', iconSize: [28, 28]
+                    });
+                    const popup = `<div class="p-2 text-slate-800 font-sans"><div class="font-bold text-xs" style="color: ${item.color};">${item.title}</div><div class="text-[11px] text-slate-600">${item.detail}</div></div>`;
+                    const marker = L.marker([item.lat, item.lng], { icon: icon }).bindPopup(popup);
+                    assetMarkerGroups[key].addLayer(marker);
+                });
+                assetMarkerGroups[key].addTo(map);
             });
         }
 
         function switchTab(tabId) {
             activeTab = tabId;
-            document.querySelectorAll('.nav-tab').forEach(el => {
-                el.classList.remove('active', 'text-sky-400', 'bg-sky-950/40', 'border', 'border-sky-800/50', 'font-bold');
-                el.classList.add('text-slate-400');
+            document.querySelectorAll('.nav-tab').forEach(b => {
+                b.className = "nav-tab w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-all";
             });
-            const activeNav = document.getElementById(`nav-${tabId}`);
-            if (activeNav) {
-                activeNav.classList.add('active', 'text-sky-400', 'bg-sky-950/40', 'border', 'border-sky-800/50', 'font-bold');
-                activeNav.classList.remove('text-slate-400');
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if (activeBtn) {
+                activeBtn.className = "nav-tab active w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-sky-400 bg-sky-950/40 border border-sky-800/50 transition-all font-bold";
             }
-
             renderSubsystemContent(tabId);
         }
 
@@ -557,68 +797,102 @@
             const titleEl = document.getElementById('tab-title');
             const iconEl = document.getElementById('tab-icon');
 
+            if (currentSystemMode === 'civil' && tabId === 'vision') {
+                titleEl.innerText = '1. J-CROS Vision (国民保護・警戒状況)';
+                iconEl.innerHTML = '<i class="fa-solid fa-person-military-pointing text-red-400"></i>';
+                container.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="bg-red-950/60 p-3 rounded-xl border border-red-800/80">
+                            <div class="text-xs font-mono text-red-300 mb-1 flex items-center justify-between">
+                                <span>J-ALERT 国民保護情報</span>
+                                <span class="animate-pulse font-bold bg-red-600 text-white px-1.5 py-0.5 rounded text-[9px]">LEVEL 4</span>
+                            </div>
+                            <div class="text-sm font-bold text-white">弾道ミサイル・武力攻撃懸念情報</div>
+                            <div class="text-[11px] text-slate-300 mt-1">対象地域: 東日本・関東甲信越ブロック全域</div>
+                        </div>
+                        <div class="space-y-2 text-xs">
+                            <div class="font-bold font-mono text-slate-300">国民保護避難体制 (COP)</div>
+                            <div class="bg-darkbg p-2.5 rounded border border-darkborder flex justify-between">
+                                <span class="text-slate-400">地下避難施設指定数:</span>
+                                <span class="text-purple-400 font-bold">1,842 箇所 (即時開放可)</span>
+                            </div>
+                            <div class="bg-darkbg p-2.5 rounded border border-darkborder flex justify-between">
+                                <span class="text-slate-400">BMD 迎撃待機態勢:</span>
+                                <span class="text-emerald-400 font-bold">PAC-3/イージス Ready</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
             if (tabId === 'vision') {
-                titleEl.innerText = '1. J-CROS Vision (全国災情統合)';
+                titleEl.innerText = '1. J-CROS Vision (官民災情統合)';
                 iconEl.innerHTML = '<i class="fa-solid fa-earth-asia"></i>';
                 container.innerHTML = `
                     <div class="space-y-3">
-                        <div class="bg-darkbg p-3 rounded-xl border border-darkborder">
-                            <div class="text-xs font-mono text-slate-400 mb-1">震度分布・被害推定（リアルタイム）</div>
-                            <div class="text-lg font-bold font-mono text-amber-400" id="vision-quake-status">最大震度 3（安定推移）</div>
-                            <div class="text-[11px] text-slate-400 mt-1">気象庁データストリーミング: 正常受信中</div>
+                        <!-- Quake & Weather Feed Box -->
+                        <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div class="flex items-center justify-between text-xs font-mono">
+                                <span class="text-sky-400 font-bold"><i class="fa-solid fa-cloud-sun-rain mr-1"></i>気象庁・SIP4D 災害速報</span>
+                                <span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">自動更新中</span>
+                            </div>
+                            <div class="text-xs text-slate-200">
+                                <div class="font-bold text-amber-300" id="vision-quake-status">気象庁最新: 千葉県北東部 M4.2 (最大震度3)</div>
+                                <div class="text-[11px] text-slate-400 mt-1">津波の心配なし / 各地インフラ異常なし</div>
+                            </div>
                         </div>
-                        <div class="space-y-2">
-                            <div class="text-xs font-bold font-mono text-slate-300">ライフライン・交通網状況 (COP)</div>
-                            <div class="grid grid-cols-2 gap-2 text-xs">
-                                <div class="bg-darkbg p-2 rounded border border-darkborder flex justify-between">
-                                    <span class="text-slate-400">電力供給:</span>
-                                    <span class="text-emerald-400 font-bold" id="stat-power">99.8% 正常</span>
+
+                        <!-- Infrastructure Grid -->
+                        <div class="space-y-2 text-xs font-mono">
+                            <div class="font-bold text-slate-300">官民ライフライン・交通稼働率</div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="bg-darkbg p-2 rounded border border-darkborder">
+                                    <div class="text-[10px] text-slate-500">電力供給 (東京/中部)</div>
+                                    <div id="stat-power" class="text-emerald-400 font-bold text-sm">99.8% 正常</div>
                                 </div>
-                                <div class="bg-darkbg p-2 rounded border border-darkborder flex justify-between">
-                                    <span class="text-slate-400">通信網:</span>
-                                    <span class="text-emerald-400 font-bold" id="stat-telecom">99.5% 正常</span>
+                                <div class="bg-darkbg p-2 rounded border border-darkborder">
+                                    <div class="text-[10px] text-slate-500">通信キャリア基地局</div>
+                                    <div id="stat-telecom" class="text-emerald-400 font-bold text-sm">99.5% 正常</div>
                                 </div>
-                                <div class="bg-darkbg p-2 rounded border border-darkborder flex justify-between">
-                                    <span class="text-slate-400">主要高速道路:</span>
-                                    <span class="text-emerald-400 font-bold" id="stat-road">通行可能</span>
+                                <div class="bg-darkbg p-2 rounded border border-darkborder">
+                                    <div class="text-[10px] text-slate-500">鉄道主要路線</div>
+                                    <div class="text-indigo-400 font-bold text-sm">平常運行</div>
                                 </div>
-                                <div class="bg-darkbg p-2 rounded border border-darkborder flex justify-between">
-                                    <span class="text-slate-400">孤立集落:</span>
-                                    <span class="text-slate-200 font-bold" id="stat-isolated">0 箇所</span>
+                                <div class="bg-darkbg p-2 rounded border border-darkborder">
+                                    <div class="text-[10px] text-slate-500">孤立懸念地域</div>
+                                    <div id="stat-isolated" class="text-slate-200 font-bold text-sm">0 箇所</div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 `;
             } else if (tabId === 'resource') {
-                titleEl.innerText = '2. J-CROS Resource (全国資源動態)';
+                titleEl.innerText = '2. J-CROS Resource (官民動員アセット)';
                 iconEl.innerHTML = '<i class="fa-solid fa-shield-halved"></i>';
                 container.innerHTML = `
-                    <div class="space-y-3">
-                        <div class="text-xs font-mono text-slate-400">自衛隊・警察・消防・海保 リアルタイムアセット</div>
-                        <div class="space-y-2 text-xs">
-                            <div class="bg-darkbg p-2.5 rounded-lg border border-darkborder flex justify-between items-center">
-                                <div>
-                                    <div class="font-bold text-slate-200">自衛隊 (統合作戦)</div>
-                                    <div class="text-[10px] text-slate-500">即応部隊・ヘリ・艦艇</div>
-                                </div>
-                                <span class="bg-blue-950 text-blue-300 px-2 py-1 rounded font-mono font-bold">12,400名 可動</span>
+                    <div class="space-y-3 text-xs">
+                        <div class="bg-indigo-950/40 p-3 rounded-xl border border-indigo-800/50 space-y-1">
+                            <div class="font-bold text-indigo-300">全国官民動員アセット一覧</div>
+                            <div class="text-slate-300 text-[11px]">自衛隊、警察、消防、海上保安庁、民間建設業TEC-FORCEの保有重機および航空アセットを一元把握。</div>
+                        </div>
+                        <div class="space-y-1.5 font-mono">
+                            <div class="bg-darkbg p-2 rounded border border-darkborder flex justify-between">
+                                <span class="text-slate-400">自衛隊 (陸海空):</span>
+                                <span class="text-sky-400 font-bold">12,400名 (即応)</span>
                             </div>
-                            <div class="bg-darkbg p-2.5 rounded-lg border border-darkborder flex justify-between items-center">
-                                <div>
-                                    <div class="font-bold text-slate-200">緊急消防援助隊</div>
-                                    <div class="text-[10px] text-slate-500">全国消防ネットワーク連携</div>
-                                </div>
-                                <span class="bg-amber-950 text-amber-300 px-2 py-1 rounded font-mono font-bold">4,200隊 待機</span>
+                            <div class="bg-darkbg p-2 rounded border border-darkborder flex justify-between">
+                                <span class="text-slate-400">緊急消防援助隊 / 警察:</span>
+                                <span class="text-amber-400 font-bold">8,900隊 待機</span>
                             </div>
-                            <div class="bg-darkbg p-2.5 rounded-lg border border-darkborder flex justify-between items-center">
-                                <div>
-                                    <div class="font-bold text-slate-200">警察広域緊急援助隊</div>
-                                    <div class="text-[10px] text-slate-500">広域警備・交通規制</div>
-                                </div>
-                                <span class="bg-indigo-950 text-indigo-300 px-2 py-1 rounded font-mono font-bold">3,800名 可動</span>
+                            <div class="bg-darkbg p-2 rounded border border-darkborder flex justify-between">
+                                <span class="text-slate-400">民間建設重機 (日本建設業連合会):</span>
+                                <span class="text-emerald-400 font-bold">3,400台 GPS同期</span>
                             </div>
                         </div>
+                        <button onclick="dispatchResourceDirect('全隊動員体制待機指示')" class="w-full bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-2 rounded-lg transition-all text-xs">
+                            官民全動員部隊へ待機指示送信
+                        </button>
                     </div>
                 `;
             } else if (tabId === 'ai') {
@@ -627,71 +901,73 @@
                 container.innerHTML = `
                     <div class="space-y-3 text-xs">
                         <div class="bg-purple-950/40 p-3 rounded-xl border border-purple-800/50">
-                            <div class="font-bold text-purple-300 mb-1 flex items-center">
-                                <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>AI自動計算モデル
-                            </div>
-                            <div class="text-slate-300 text-[11px] leading-relaxed">
-                                過去の被害データおよび気象・地盤データを機械学習。最適部隊ルート、優先救助エリア、トリアージ・医療搬送マッチングを15秒サイクルで自動試算。
-                            </div>
+                            <div class="font-bold text-purple-300 mb-1">Gemini 3 Flash リアルタイム推計</div>
+                            <div class="text-slate-300 text-[11px]">気象庁の地震・気象データおよび地理院ハザードマップに基づき、数秒で最適出動・避難誘導計画を提示。</div>
                         </div>
-                        <button onclick="runAIOptimization()" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-2 rounded-lg shadow border border-purple-400/30">
-                            <i class="fa-solid fa-calculator mr-1.5"></i>全国リソース最適配分アルゴリズム実行
+                        <button onclick="runAIOptimization()" class="w-full bg-purple-700 hover:bg-purple-600 text-white font-bold py-2 rounded-lg transition-all flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>官民アセット最適配置アルゴリズム実行</span>
                         </button>
                     </div>
                 `;
             } else if (tabId === 'command') {
-                titleEl.innerText = '4. J-CROS Command (国家統合指揮)';
+                titleEl.innerText = '4. J-CROS Command (統合指揮・閣議)';
                 iconEl.innerHTML = '<i class="fa-solid fa-gavel"></i>';
                 container.innerHTML = `
                     <div class="space-y-3 text-xs">
                         <div class="bg-red-950/40 p-3 rounded-xl border border-red-800/50">
-                            <div class="font-bold text-red-300 mb-1">緊急事態発令・法的電子決裁</div>
-                            <div class="text-slate-300 text-[11px] leading-relaxed">
-                                国家災害対策本部（内閣総理大臣・官房長官）からの緊急広域出動命令を全機関（自衛隊・警察・消防・海保）へ即時電子発出。
-                            </div>
+                            <div class="font-bold text-red-300 mb-1">国家最高法的指揮 & L-ALERT一斉配信</div>
+                            <div class="text-slate-300 text-[11px]">内閣総理大臣の電子決裁により、災害緊急事態宣言およびL-ALERT/J-ALERTの一斉発令が可能。</div>
                         </div>
-                        <button onclick="issueNationalOrder()" class="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg shadow-lg border border-red-400/40 font-mono">
-                            <i class="fa-solid fa-file-signature mr-1.5"></i>【電子決裁】全国広域出動命令 発出
-                        </button>
+                        <div class="space-y-2">
+                            <button onclick="issueNationalOrder()" class="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg shadow-lg shadow-red-900/40 transition-all flex items-center justify-center space-x-2">
+                                <i class="fa-solid fa-file-signature"></i>
+                                <span>【電子決裁】緊急広域出動指示を発注</span>
+                            </button>
+                        </div>
                     </div>
                 `;
             } else if (tabId === 'logistics') {
-                titleEl.innerText = '5. J-CROS Logistics (全国物流統合)';
+                titleEl.innerText = '5. J-CROS Logistics (民間物資サプライチェーン)';
                 iconEl.innerHTML = '<i class="fa-solid fa-truck-fast"></i>';
                 container.innerHTML = `
                     <div class="space-y-3 text-xs">
                         <div class="bg-amber-950/40 p-3 rounded-xl border border-amber-800/50">
-                            <div class="font-bold text-amber-300 mb-1">プッシュ型支援最適化マッチング</div>
-                            <div class="text-slate-300 text-[11px]">被災自治体からの要請を待たずに、AIが避難所人口と備蓄から需要を自動予測し発送。</div>
+                            <div class="font-bold text-amber-300 mb-1">プッシュ型支援 & 民間倉庫自動マッチング</div>
+                            <div class="text-slate-300 text-[11px]">ヤマト・佐川・日通およびイオン・セブン等とデータ連携。需要に対する物資充足率をリアルタイムグラフ化。</div>
                         </div>
-                        <canvas id="logisticsChart" class="w-full h-32 bg-darkbg p-2 rounded-lg border border-darkborder"></canvas>
+                        <div class="h-40 bg-darkbg p-2 rounded-lg border border-darkborder relative">
+                            <canvas id="logisticsChart"></canvas>
+                        </div>
                     </div>
                 `;
                 setTimeout(initLogisticsChart, 100);
             } else if (tabId === 'medical') {
-                titleEl.innerText = '6. J-CROS Medical (全国医療統合)';
+                titleEl.innerText = '6. J-CROS Medical (広域医療EMIS)';
                 iconEl.innerHTML = '<i class="fa-solid fa-notes-medical"></i>';
                 container.innerHTML = `
                     <div class="space-y-3 text-xs">
                         <div class="bg-emerald-950/40 p-3 rounded-xl border border-emerald-800/50">
-                            <div class="font-bold text-emerald-300 mb-1">EMIS連携 / 広域医療搬送 (SCU)</div>
-                            <div class="text-slate-300 text-[11px]">全国高度医療機関の病床・ICU動態とDMAT派遣状況を一元マッチング。</div>
+                            <div class="font-bold text-emerald-300 mb-1">広域災害医療情報システム (EMIS) 連携</div>
+                            <div class="text-slate-300 text-[11px]">全国の災害拠点病院のICU・人工呼吸器空き状況とDMAT部隊のリアルタイムマッチング。</div>
                         </div>
-                        <canvas id="medicalChart" class="w-full h-32 bg-darkbg p-2 rounded-lg border border-darkborder"></canvas>
+                        <div class="h-40 bg-darkbg p-2 rounded-lg border border-darkborder relative">
+                            <canvas id="medicalChart"></canvas>
+                        </div>
                     </div>
                 `;
                 setTimeout(initMedicalChart, 100);
             } else if (tabId === 'recovery') {
-                titleEl.innerText = '7. J-CROS Recovery (応急復旧)';
+                titleEl.innerText = '7. J-CROS Recovery (インフラ迅速復旧)';
                 iconEl.innerHTML = '<i class="fa-solid fa-hammer"></i>';
                 container.innerHTML = `
                     <div class="space-y-3 text-xs">
                         <div class="bg-orange-950/40 p-3 rounded-xl border border-orange-800/50">
-                            <div class="font-bold text-orange-300 mb-1">インフラ応急復旧・道路啓開</div>
-                            <div class="text-slate-300 text-[11px]">国交省TEC-FORCE・電力・ガス・通信会社データと連携しボトルネックを特定。</div>
+                            <div class="font-bold text-orange-300 mb-1">道路啓開・ライフライン復旧マネジメント</div>
+                            <div class="text-slate-300 text-[11px]">国交省TEC-FORCE・電力9社・ガス会社・NTT・鉄道会社の状況を統合し、ボトルネックを自動特定。</div>
                         </div>
                         <div class="bg-darkbg p-2.5 rounded border border-darkborder space-y-1.5">
-                            <div class="flex justify-between font-mono"><span class="text-slate-400">緊急輸送道路啓開:</span><span class="text-emerald-400 font-bold">98.2% 完了</span></div>
+                            <div class="flex justify-between font-mono"><span class="text-slate-400">緊急輸送道路啓開率:</span><span class="text-emerald-400 font-bold">98.2% 正常</span></div>
                             <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                                 <div class="bg-emerald-500 h-full w-[98%]"></div>
                             </div>
@@ -699,99 +975,136 @@
                     </div>
                 `;
             } else if (tabId === 'security') {
-                titleEl.innerText = '8. J-CROS Security (国家サイバー防護)';
+                titleEl.innerText = '8. J-CROS Security (通信・防護網)';
                 iconEl.innerHTML = '<i class="fa-solid fa-lock"></i>';
                 container.innerHTML = `
                     <div class="space-y-3 text-xs">
                         <div class="bg-teal-950/40 p-3 rounded-xl border border-teal-800/50">
-                            <div class="font-bold text-teal-300 mb-1">ゼロトラスト・量子暗号・衛星通信</div>
-                            <div class="text-slate-300 text-[11px]">有事のサイバー攻撃をAIで能動防護。低軌道衛星網(Starlink)で非常時通信を二重化。</div>
+                            <div class="font-bold text-teal-300 mb-1">ゼロトラスト・Starlink衛星通信網</div>
+                            <div class="text-slate-300 text-[11px]">有事のDDoS/サイバー攻撃をAI能動防護。地上回線切断時は低軌道衛星網へ自動フェイルオーバー。</div>
                         </div>
                         <div class="bg-darkbg p-2.5 rounded border border-darkborder space-y-1 font-mono text-[11px]">
-                            <div class="flex justify-between text-teal-400"><span>MFA多要素認証:</span><span>有効</span></div>
-                            <div class="flex justify-between text-teal-400"><span>AIサイバー異常検知:</span><span>正常</span></div>
-                            <div class="flex justify-between text-teal-400"><span>分散型DC同期:</span><span>ミリ秒同期</span></div>
+                            <div class="flex justify-between text-teal-400"><span>MFA多要素暗号:</span><span>完全保護</span></div>
+                            <div class="flex justify-between text-teal-400"><span>Starlink衛星通信:</span><span>全系オンライン</span></div>
                         </div>
                     </div>
                 `;
             }
         }
 
-        function toggleEmergencySim() {
-            isEmergency = !isEmergency;
-            const btn = document.getElementById('sim-trigger-btn');
-            const btnText = document.getElementById('sim-btn-text');
-            const modeLabel = document.getElementById('current-mode-label');
-
-            if (isEmergency) {
-                btn.className = "bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg border border-slate-500/40 transition-all flex items-center space-x-2 cursor-pointer";
-                btnText.innerText = "平時監視モードに戻す";
-                modeLabel.className = "text-red-500 font-bold animate-pulse";
-                modeLabel.innerText = "【緊急大規模災害モード】発災自動起動";
-
-                // Trigger Simulation Visual Updates
-                updateTimeline(1); // Auto jump to 5 min phase
-                document.getElementById('timeline-range').value = 1;
-
-                // Update Vision Data
-                const quakeEl = document.getElementById('vision-quake-status');
-                if (quakeEl) quakeEl.innerText = "震度 6強 / 南海トラフ・首都直下同時発災要請";
-
-                document.getElementById('stat-power').innerText = "72.4% (一部停電)";
-                document.getElementById('stat-power').className = "text-amber-400 font-bold";
-                document.getElementById('stat-telecom').innerText = "81.0% (規制中)";
-                document.getElementById('stat-isolated').innerText = "14 地区 (要救助)";
-                document.getElementById('stat-isolated').className = "text-red-400 font-bold";
-
-                // Auto hazard layer trigger
-                document.getElementById('layer-hazard-flood').checked = true;
-                toggleHazardLayer('flood');
-
-                // Map Zoom & Pan to Disaster Area
-                map.flyTo([35.2000, 139.1000], 9, { duration: 1.5 });
-
-                addLog("【重要】緊急災害モード起動。アクセス権限が国家災害対策本部へ即時昇格。");
-                askGeminiAISimulation();
-            } else {
-                btn.className = "bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg shadow-red-900/50 border border-red-400/40 transition-all flex items-center space-x-2 cursor-pointer";
-                btnText.innerText = "首都直下/南海トラフ連動発災シミュレーション";
-                modeLabel.className = "text-emerald-400 font-semibold";
-                modeLabel.innerText = "【平時】全天候常時監視";
-
-                updateTimeline(0);
-                document.getElementById('timeline-range').value = 0;
-
-                const quakeEl = document.getElementById('vision-quake-status');
-                if (quakeEl) quakeEl.innerText = "最大震度 3（安定推移）";
-
-                document.getElementById('stat-power').innerText = "99.8% 正常";
-                document.getElementById('stat-power').className = "text-emerald-400 font-bold";
-                document.getElementById('stat-telecom').innerText = "99.5% 正常";
-                document.getElementById('stat-isolated').innerText = "0 箇所";
-                document.getElementById('stat-isolated').className = "text-slate-200 font-bold";
-
-                document.getElementById('layer-hazard-flood').checked = false;
-                toggleHazardLayer('flood');
-
-                addLog("通常監視モードへ復帰しました。");
+        function toggleOpenDataLayer(key) {
+            const isChecked = document.getElementById(`layer-${key === 'jma_quake' ? 'jma-quake' : 'private-' + key}`)?.checked || document.getElementById('layer-public-evac')?.checked;
+            if (openDataLayers[key]) {
+                if (isChecked) {
+                    openDataLayers[key].addTo(map);
+                    addLog(`[オープンデータ] ${key.toUpperCase()} レイヤーを表示しました。`);
+                } else {
+                    map.removeLayer(openDataLayers[key]);
+                }
             }
         }
 
-        // Timeline Progress updates
-        function updateTimeline(val) {
-            currentTimelinePhase = parseInt(val);
-            const textEl = document.getElementById('timeline-phase-text');
-            const phases = [
-                "発災後 0分 (地震・津波自動起動)",
-                "発災後 5分以内 (COP初期生成・被害推計配信)",
-                "発災後 15分以内 (J-CROS AI 初動リソース配置案提示)",
-                "発災後 20分以内 (警察・消防・自衛隊 広域出動命令)",
-                "発災後 1時間 (プッシュ型物資支援・道路啓開指定)",
-                "発災後 3時間 (広域応援部隊第一陣・DMAT最適受入)",
-                "発災後 24時間以降 (応急復旧・仮設住宅・ライフライン再編)"
-            ];
-            textEl.innerText = phases[val];
-            addLog(`[タイムライン切替] ${phases[val]}`);
+        function toggleHazardLayer(key) {
+            const isChecked = document.getElementById(`layer-hazard-${key}`).checked;
+            if (isChecked) {
+                hazardLayers[key].addTo(map);
+                addLog(`[国土地理院ハザード] ${key === 'flood' ? '洪水浸水想定' : key === 'sediment' ? '土砂災害警戒' : '津波浸水想定'}を地図上へ重畳しました。`);
+            } else {
+                map.removeLayer(hazardLayers[key]);
+            }
+        }
+
+        function toggleCivilProtectionLayer(key) {
+            const isChecked = document.getElementById(`layer-civil-${key}`).checked;
+            if (isChecked) {
+                civilProtectionLayers[key].addTo(map);
+                addLog(`[国民保護] ${key === 'shelters' ? '地下避難指定施設' : 'J-ALERT 警戒領域'}を表示しました。`);
+            } else {
+                map.removeLayer(civilProtectionLayers[key]);
+            }
+        }
+
+        function toggleAssetLayer(key) {
+            const isChecked = document.getElementById(`layer-${key}`).checked;
+            if (isChecked) {
+                assetMarkerGroups[key].addTo(map);
+            } else {
+                map.removeLayer(assetMarkerGroups[key]);
+            }
+        }
+
+        function setBaseMap(type) {
+            Object.keys(baseTileLayers).forEach(k => map.removeLayer(baseTileLayers[k]));
+            if (baseTileLayers[type]) {
+                baseTileLayers[type].addTo(map);
+            }
+            ['std', 'photo', 'pale', 'osm'].forEach(t => {
+                const b = document.getElementById(`map-btn-${t}`);
+                if (b) b.className = "px-2 py-1 rounded hover:bg-slate-800 text-slate-300 text-[11px]";
+            });
+            const activeBtn = document.getElementById(`map-btn-${type.replace('gsi_', '')}`);
+            if (activeBtn) activeBtn.className = "px-2 py-1 rounded bg-slate-800 text-sky-400 font-bold text-[11px] border border-slate-700";
+        }
+
+        function switchMode(mode) {
+            currentSystemMode = mode;
+            const banner = document.getElementById('jalert-banner');
+            const dot = document.getElementById('current-mode-dot');
+            const label = document.getElementById('current-mode-label');
+
+            ['normal', 'disaster', 'civil'].forEach(m => {
+                const b = document.getElementById(`btn-mode-${m}`);
+                if (b) b.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all hover:bg-slate-800 text-slate-400";
+            });
+
+            if (mode === 'normal') {
+                document.getElementById('btn-mode-normal').className = "px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-400 bg-slate-800 border border-slate-700";
+                banner.classList.add('hidden');
+                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping";
+                label.className = "text-emerald-400 font-semibold";
+                label.innerText = "【平時】官民データリアルタイム統合監視";
+
+                document.getElementById('layer-civil-shelters').checked = false;
+                document.getElementById('layer-civil-alertzone').checked = false;
+                toggleCivilProtectionLayer('shelters');
+                toggleCivilProtectionLayer('alertzone');
+
+                addLog("システムモード: 【平時常時監視】に復帰。");
+            } else if (mode === 'disaster') {
+                document.getElementById('btn-mode-disaster').className = "px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-300 bg-amber-950/60 border border-amber-700/80";
+                banner.classList.add('hidden');
+                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping";
+                label.className = "text-amber-400 font-bold";
+                label.innerText = "【大規模自然災害】首都直下/南海トラフ自動連動";
+
+                document.getElementById('layer-hazard-flood').checked = true;
+                toggleHazardLayer('flood');
+
+                addLog("【緊急】大規模自然災害モード起動。国土地理院・浸水レイヤーおよび避難情報を優先表示。");
+                map.flyTo([35.2000, 139.1000], 9, { duration: 1.2 });
+            } else if (mode === 'civil') {
+                document.getElementById('btn-mode-civil').className = "px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-300 bg-red-950 border border-red-600 animate-pulse";
+                banner.classList.remove('hidden');
+                dot.className = "inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-ping";
+                label.className = "text-red-400 font-bold animate-pulse";
+                label.innerText = "【国民保護事態】J-ALERT・武力攻撃警戒発令";
+
+                document.getElementById('layer-civil-shelters').checked = true;
+                document.getElementById('layer-civil-alertzone').checked = true;
+                toggleCivilProtectionLayer('shelters');
+                toggleCivilProtectionLayer('alertzone');
+
+                addLog("【警告】国民保護事態モード発令。地下避難施設・J-ALERT区域を重畳。");
+                map.flyTo([35.6812, 139.7671], 10, { duration: 1.2 });
+                askGeminiAICivilProtection();
+            }
+
+            renderSubsystemContent(activeTab);
+        }
+
+        function quickAIQuery(text) {
+            document.getElementById('ai-query-input').value = text;
+            askGeminiAI();
         }
 
         async function askGeminiAI() {
@@ -800,80 +1113,94 @@
             if (!query) return;
 
             const box = document.getElementById('ai-response-box');
-            box.innerHTML = `<div class="flex items-center space-x-2 text-purple-400"><i class="fa-solid fa-spinner fa-spin"></i><span>J-CROS AI (Gemini 3 Flash) 解析中...</span></div>`;
+            box.innerHTML = `<div class="flex items-center space-x-2 text-purple-400"><i class="fa-solid fa-spinner fa-spin"></i><span>J-CROS AI (Gemini 3 Flash) 官民オープンデータ解析中...</span></div>`;
             inputEl.value = '';
 
-            const systemPrompt = "あなたは『日本統合危機対応システム(J-CROS)』のAI意思決定支援エンジンです。国家災害対策本部および閣僚・指揮官に対し、人命第一主義と全国資源の最適配置に基づく、極めて簡潔・迅速・的確な意思決定支援と要約を提供してください。回答は要点を箇条書きで分かりやすく述べてください。";
-
+            const systemPrompt = "あなたは日本統合危機対応システム(J-CROS)の最高意思決定支援AIです。気象庁、国土地理院、民間インフラ(電力・通信・交通)のデータを踏まえ、官民の迅速な初動方針を簡潔に箇条書きで提言してください。";
             const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
-            const payload = {
-                contents: [{ parts: [{ text: query }] }],
-                tools: [{ "google_search": {} }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
-            };
 
             try {
+                if (!apiKey) throw new Error("API key not set");
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: query }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
                 });
-                const result = await response.json();
+                const textResp = await response.text();
+                if (!textResp.trim().startsWith('{')) throw new Error("Invalid API response format");
+                const result = JSON.parse(textResp);
                 const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || "解析結果の取得に失敗しました。";
-                
-                box.innerHTML = `<div class="font-bold text-purple-300 mb-1">【J-CROS AI 提言】</div><div class="whitespace-pre-wrap">${escapeHtml(text)}</div>`;
-                addLog(`[AI意思決定支援] 照会実行: "${query.substring(0, 15)}..."`);
+                box.innerHTML = `<div class="font-bold text-purple-300 mb-1">【J-CROS AI 官民統合分析結果】</div><div class="whitespace-pre-wrap text-slate-200">${escapeHtml(text)}</div>`;
+                addLog(`[AI分析] 照会実行: "${query.substring(0, 15)}..."`);
             } catch (err) {
-                box.innerHTML = `<span class="text-rose-400">AIサービス通信エラーが発生しました。予備システムに切替中。</span>`;
+                box.innerHTML = `<div class="font-bold text-purple-300 mb-1">【J-CROS AI 提言 (予備応答)】</div><p>1. 気象庁地震データに基づき、揺れの大きかった地域への救助隊集中投入を推奨。<br>2. 電力・通信会社の停電/基地局障害スポットと指定避難場所のデータを照合。<br>3. 民間物流サプライチェーンの優先輸送道路(国交省TEC-FORCE啓開済)を指定完了。</p>`;
             }
         }
 
-        async function askGeminiAISimulation() {
+        async function askGeminiAICivilProtection() {
             const box = document.getElementById('ai-response-box');
-            box.innerHTML = `<div class="flex items-center space-x-2 text-purple-400"><i class="fa-solid fa-spinner fa-spin"></i><span>発災シミュレーション被害規模・初動最適配置の自動推計中...</span></div>`;
+            box.innerHTML = `<div class="flex items-center space-x-2 text-purple-400"><i class="fa-solid fa-spinner fa-spin"></i><span>国民保護措置の自動解析中...</span></div>`;
 
-            const prompt = "首都直下地震・南海トラフ同時連動発災（緊急災害モード）が発令されました。発災5分以内の初動対応として、自衛隊、緊急消防援助隊、DMATの優先投入エリア3箇所と、プッシュ型輸送で確保すべき最重要物資を要約して短く提示してください。";
-            
-            const systemPrompt = "あなたはJ-CROS統合危機対応システムの最高意思決定支援AIです。迅速かつ明確に出動・配分計画を要約してください。";
+            const prompt = "国民保護事態が発令されました。住民の地下避難指示およびPAC-3/警察/消防の警戒態勢についての要点を3点にまとめ提示してください。";
+            const systemPrompt = "あなたはJ-CROSの最高AIアドバイザーです。国民保護法に基づき的確に要約してください。";
             const apiKey = "";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
             try {
+                if (!apiKey) throw new Error("API key not set");
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload = {
+                    body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
                         systemInstruction: { parts: [{ text: systemPrompt }] }
                     })
                 });
-                const result = await response.json();
-                const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || "要約の取得に失敗しました。";
-                box.innerHTML = `<div class="font-bold text-red-400 mb-1">【J-CROS AI 初動最適配分案】</div><div class="whitespace-pre-wrap text-slate-200">${escapeHtml(text)}</div>`;
+                const textResp = await response.text();
+                if (!textResp.trim().startsWith('{')) throw new Error("Invalid API response format");
+                const result = JSON.parse(textResp);
+                const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || "解析失敗";
+                box.innerHTML = `<div class="font-bold text-red-400 mb-1">【国民保護事態 初動指示】</div><div class="whitespace-pre-wrap text-slate-200">${escapeHtml(text)}</div>`;
             } catch(e) {
-                box.innerHTML = `<div class="font-bold text-red-400">【J-CROS AI 初動最適配分案】</div><p>1. 伊豆半島沿岸部・川崎臨海部へ自衛隊ヘリ救助隊を集中投入。<br>2. 東京広域災害医療センター(SCU)へDMAT 20隊を即時展開。<br>3. 食料・飲料水・医療用酸素のプッシュ型輸送ルート(指定緊急輸送道路)を確保。</p>`;
+                box.innerHTML = `<div class="font-bold text-red-400">【国民保護事態 初動指示】</div><p>1. 地下駅・地下街への屋内退避命令をL-ALERT経由で一斉発信。<br>2. 新宿・東京・品川などの主要地下施設を即時開放。<br>3. 自衛隊BMD迎撃部隊の警戒レベルを最高に昇格。</p>`;
             }
         }
 
-        // Action Utilities
+        function updateTimeline(val) {
+            currentTimelinePhase = parseInt(val);
+            const textEl = document.getElementById('timeline-phase-text');
+            const phases = [
+                "発災後 0分 (平時・リアルタイム常時監視中)",
+                "発災後 5分以内 (気象庁・SIP4D初期被害推計受信)",
+                "発災後 15分以内 (Gemini AI 官民資源配置案生成)",
+                "発災後 20分以内 (警察・消防・自衛隊 広域出動)",
+                "発災後 1時間 (民間サプライチェーン・プッシュ物資)",
+                "発災後 3時間 (広域医療DMAT・SCU受け入れ)",
+                "発災後 24時間 (インフラ応急復旧・電力/通信再開)"
+            ];
+            textEl.innerText = phases[val];
+            addLog(`[タイムライン] ${phases[val]}`);
+        }
+
         function runAIOptimization() {
-            addLog("[J-CROS AI] 全国アセットの最適配置アルゴリズムを再計算しました。");
-            alertModal("J-CROS AI 試算完了", "自衛隊・警察・消防・DMATの最短投入ルートおよび医療搬送マッチング案を更新しました。COP画面を確認してください。");
+            addLog("[J-CROS AI] 官民統合オープンデータによる最適配置を計算。");
+            alertModal("J-CROS AI 計算完了", "気象庁・地理院・民間インフラデータに基づく広域搬送マッチング案を更新しました。");
         }
 
         function issueNationalOrder() {
-            addLog("【国家統合指揮】内閣総理大臣による全国広域出動命令が電子署名付きで発出されました。");
-            alertModal("【電子決裁完了】緊急出動命令発出", "自衛隊、警察広域緊急援助隊、緊急消防援助隊、海上保安庁に対し、J-CROS Command経由で即時緊急出動指示を送信しました。");
+            addLog("【統合指揮】官邸・内閣総理大臣による緊急出動指示が電子署名発出されました。");
+            alertModal("【電子決裁完了】", "自衛隊、警察、消防、海上保安庁に対し緊急指示を送信しました。");
         }
 
         function dispatchResourceDirect(name) {
-            addLog(`[資源動態調整] 『${name}』へ個別動態指示・位置同期要求を送信。`);
-            alertModal("資源動態指定", `『${name}』に対する動態調整コマンドを発信しました。`);
+            addLog(`[資源指示] 『${name}』を発行しました。`);
+            alertModal("動態調整コマンド", `『${name}』を発信しました。`);
         }
 
-        // Logger Function
         function addLog(msg) {
             const list = document.getElementById('action-log-list');
             if(!list) return;
@@ -896,7 +1223,7 @@
                     labels: ['食料(万食)', '飲料水(万L)', '医薬品(箱)', '燃料(kL)'],
                     datasets: [
                         { label: '被災地需要', data: [120, 300, 45, 80], backgroundColor: '#ef4444' },
-                        { label: '供給・輸送中', data: [95, 280, 40, 75], backgroundColor: '#10b981' }
+                        { label: '民間供給可', data: [110, 290, 42, 78], backgroundColor: '#10b981' }
                     ]
                 },
                 options: {
@@ -917,7 +1244,7 @@
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['受入可能病床', '使用中', '搬送中(DMAT)'],
+                    labels: ['空き病床', '使用中', 'DMAT受入枠'],
                     datasets: [{
                         data: [420, 850, 130],
                         backgroundColor: ['#10b981', '#f59e0b', '#3b82f6']
@@ -931,7 +1258,6 @@
             });
         }
 
-        // Custom Modal replaces alert()
         function alertModal(title, text) {
             const modal = document.createElement('div');
             modal.className = "fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4";
@@ -961,7 +1287,8 @@
                     String(now.getHours()).padStart(2,'0') + ':' +
                     String(now.getMinutes()).padStart(2,'0') + ':' +
                     String(now.getSeconds()).padStart(2,'0') + ' JST';
-                document.getElementById('live-time').innerText = str;
+                const el = document.getElementById('live-time');
+                if (el) el.innerText = str;
             }, 1000);
         }
 
